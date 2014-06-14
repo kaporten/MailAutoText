@@ -154,22 +154,26 @@ end
 
 function MailAutoText:MoneyCODOn()
 	MailAutoText.fMailMoneyCODOn(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
-	--MailAutoText:UpdateMessage()
+	MailAutoText.COD = true
+	MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:MoneyCODOff()
 	MailAutoText.fMailMoneyCODOff(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
-	--MailAutoText:UpdateMessage()
+	MailAutoText.COD = false
+	MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:MoneySendOn()
 	MailAutoText.fMailMoneySendOn(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
-	--MailAutoText:UpdateMessage()
+	MailAutoText.Send = true
+	MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:MoneySendOff()
 	MailAutoText.fMailMoneySendOff(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
-	--MailAutoText:UpdateMessage()
+	MailAutoText.Send = false
+	MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:GoldPrettyPrint(amount)
@@ -197,6 +201,6 @@ function MailAutoText:GoldPrettyPrint(amount)
 		return_string = return_string .. copper .. " copper"
 	end
 	
-	-- return(return_string)
-	Print(return_string)
+	return(return_string)
+	--Print(return_string)
 end
