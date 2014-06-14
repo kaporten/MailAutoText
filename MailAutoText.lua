@@ -24,10 +24,16 @@ function MailAutoText:Init()
 	Apollo.RegisterAddon(self, bHasConfigureFunction, strConfigureButtonText, tDependencies)
 end
 
-function MailAutoText:OnLoad() 
-	Print("OnLoad called")
-	self.testprop = "testval"
+function MailAutoText:OnLoad()
+	-- TODO: Check if "Mail" is installed (or have been replaced)
+	--Apollo.GetAddon("Mail").luaComposeMail:FindChild("HeaderTitle"):SetText("Nyt og moderne!")
+	Apollo.RegisterEventHandler("MailAddAttachment", "OnMailAddAttachment", self)
 end
+
+function MailAutoText:OnMailAddAttachment()
+	Print("Yarr!")
+end
+
 
 local MailAutoTextInst = MailAutoText:new()
 MailAutoTextInst:Init()
