@@ -13,8 +13,6 @@ function MailAutoText:OnEnable()
 end
 
 function MailAutoText:HookMailModificationFunctions() 
-	Print("Hooking mail functions")
-	
 	-- Store ref to Mail's attachment removed function and replace with own
 	MailAutoText.fMailAttachmentRemoved = Apollo.GetAddon("Mail").luaComposeMail.OnClickAttachment
 	Apollo.GetAddon("Mail").luaComposeMail.OnClickAttachment = MailAutoText.ItemAttachmentRemoved
@@ -24,14 +22,6 @@ function MailAutoText:HookMailModificationFunctions()
 end
 
 function MailAutoText:ItemAttachmentAdded(nValue)
-	Print("Item attachment added")
-	
-	-- Update message subject if not already specified
-	local currentSubject = Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:GetText()
-	if currentSubject == nil or currentSubject == "" then
-		Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:SetText("Sending items")
-	end
-	
 	-- Calculate new item-string and trigger body-update
 	MailAutoText.strItemList = MailAutoText:GenerateItemListString(nValue)
 	MailAutoText:UpdateMessage()
@@ -86,8 +76,23 @@ function MailAutoText:GenerateItemListString(newAttachmentId)
 	return strItems
 end
 
+function MailAutoText:GenerateSubjectString()
+	-- Update message subject if not already specified
+	local currentSubject = Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:GetText()
+	if currentSubject == nil or currentSubject == "" then
+		-- TODO: different text depending on actual content
+		return "Sending items" 
+	end
+	
+	return currentSubject
+end
+
 function MailAutoText:UpdateMessage()
-	Print("Updating message body")
+	-- Update subject
+	Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:SetText(MailAutoText:GenerateSubjectString())
+
+	-- Update body
+	-- TODO: also include cash
 	if type(MailAutoText.strItemList) == "string" then
 		Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(MailAutoText.strItemList)
 	end
