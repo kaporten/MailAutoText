@@ -101,7 +101,7 @@ function MailAutoText:GenerateSubjectString()
 end
 
 function MailAutoText:UpdateMessage()
-	local bCreditsText = MailAutoText.strCredits ~= nil and MailAutoText.strCredits ~= ""
+	local bCreditsText = MailAutoText.GetCreditAcount() ~= nil
 	local bItemListText = MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= ""
 	
 	-- Update subject
@@ -134,7 +134,12 @@ function MailAutoText:UpdateMessage()
 	
 	-- Append credits text if sending credits
 	if bCreditsText == true then
-		newBody = newBody .. "Credits: " .. " X dollahs"
+		if MailAutoText.CreditsCOD == true then
+			newBody = newBody .. "Cost: " .. MailAutoText.GetCreditAcount() .. "\n"
+		end
+		if MailAutoText.CreditsSend == true then
+			newBody = newBody .. "Credits: " .. MailAutoText.GetCreditAcount() .. "\n"
+		end
 	end
 	
 	if bItemListText == true then
@@ -144,9 +149,10 @@ function MailAutoText:UpdateMessage()
 	Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(newBody)
 end
 
---function MailAutoText:CashAmountChanged()
---	MailAutoText:GoldPrettyPrint(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount())
---end
+function MailAutoText:CashAmountChanged()
+	--MailAutoText:GoldPrettyPrint(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount())
+	MailAutoText:UpdateMessage()
+end
 
 function MailAutoText:GetCreditAcount()
 	return MailAutoText:GoldPrettyPrint(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount())
@@ -154,31 +160,33 @@ end
 
 function MailAutoText:MoneyCODOn()
 	MailAutoText.fMailMoneyCODOn(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
-	MailAutoText.COD = true
+	MailAutoText.CreditsCOD = true
+	MailAutoText.CreditsSend = false
 	MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:MoneyCODOff()
 	MailAutoText.fMailMoneyCODOff(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
-	MailAutoText.COD = false
+	MailAutoText.CreditsCOD = false
 	MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:MoneySendOn()
 	MailAutoText.fMailMoneySendOn(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
-	MailAutoText.Send = true
+	MailAutoText.CreditsSend = true
+	MailAutoText.CreditsCOD = false
 	MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:MoneySendOff()
 	MailAutoText.fMailMoneySendOff(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
-	MailAutoText.Send = false
+	MailAutoText.CreditsSend = false
 	MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:GoldPrettyPrint(amount)
 	if amount == 0 then
-		return 0
+		return nil
 	end
 	
 	local amount_string = tostring(amount)
@@ -189,16 +197,16 @@ function MailAutoText:GoldPrettyPrint(amount)
 	plat = string.sub(amount_string, -8, -7)
 	
 	if plat ~= nil and plat ~= "" then
-		return_string = return_string .. plat .. " platinum "
+		return_string = return_string .. plat .. " Platinum "
 	end
 	if gold ~= nil and gold ~= "" then
-		return_string = return_string .. gold .. " gold "
+		return_string = return_string .. gold .. " Gold "
 	end
 	if silver ~= nil and silver ~= "" then 
-		return_string = return_string .. silver .. " silver "
+		return_string = return_string .. silver .. " Silver "
 	end
 	if copper ~= nil and copper ~= "" then
-		return_string = return_string .. copper .. " copper"
+		return_string = return_string .. copper .. " Copper"
 	end
 	
 	return(return_string)
