@@ -21,39 +21,25 @@ function MailAutoText:HookMailModificationFunctions()
 	
 	MailAutoText.fMainMoneyAttached = Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged
 	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.CashAmountChanged
-
 end
 
 function MailAutoText:ItemAttachmentAdded(nValue)
 	Print("Item attachment added")
 	
-	local mail = Apollo.GetAddon("Mail")	
-	
-	-- Get id of item just added to message, and get detailed item info
-	local itemId = MailSystemLib.GetItemFromInventoryId(nValue):GetItemId()
-	local itemDetails = Item.GetDetailedInfo(itemId)
-	
 	-- Update message subject if not already specified
-	local currentSubject = mail.luaComposeMail.wndSubjectEntry:GetText()
+	local currentSubject = Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:GetText()
 	if currentSubject == nil or currentSubject == "" then
-		mail.luaComposeMail.wndSubjectEntry:SetText("Sending items")
+		Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:SetText("Sending items")
 	end
-	
-	-- Add a line of text to the message body
-	local currentMailBody = mail.luaComposeMail.wndMessageEntryText:GetText()
-	if currentMailBody == nil or currentMailBody == "" then
-		-- Replace entire contents (to avoid blank lines)
-		mail.luaComposeMail.wndMessageEntryText:SetText(itemDetails.tPrimary.strName)
-	else
-		-- Append line
-		mail.luaComposeMail.wndMessageEntryText:SetText(currentMailBody .. "\n" .. itemDetails.tPrimary.strName)
-	end
+
+	-- Update message body
+	MailAutoText:UpdateMessageBody(MailAutoText:GenerateItemListString(nValue))
 end
 
-function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
+function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)	
 	-- Direct call to original Mail "attachment removed" function
 	MailAutoText.fMailAttachmentRemoved(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
-	
+
 	-- Function is called twice by Mail addon - these filters (copied from Mail.lua) filters out one of them
 	if wndHandler ~= wndControl then
 		return
@@ -63,8 +49,53 @@ function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
 		return
 	end
 	
+	-- Update message body
+	MailAutoText:UpdateMessageBody(MailAutoText:GenerateItemListString())
+	
 	-- Then add custom handling
 	Print("Item attachment removed")
+end
+
+
+function MailAutoText:GenerateItemListString(newAttachmentId)
+	
+	-- Deep-copy "arAttachments" into local array
+	local allAttachmentIds = {}
+	for k,v in ipairs(Apollo.GetAddon("Mail").luaComposeMail.arAttachments) do
+		allAttachmentIds[k] = v
+	end
+	
+	-- Check if the newly-added item (if any) already exist in array
+	local bExists = false
+	for k,v in ipairs(allAttachmentIds) do
+		if v == newAttachmentId then
+			bExists = true
+		end
+	end
+	
+	-- Add new item to end of array if not present
+	if bExists == false then
+		allAttachmentIds[#allAttachmentIds+1] = newAttachmentId
+	end
+	
+	Print("Lenght of attachment list: " .. #allAttachmentIds)
+	
+	local strItems = ""
+	for _,attachmentId in ipairs(allAttachmentIds) do
+		local itemId = MailSystemLib.GetItemFromInventoryId(attachmentId):GetItemId()
+		local itemDetails = Item.GetDetailedInfo(itemId)
+		strItems = strItems .. itemDetails.tPrimary.strName .. "\n"
+	end
+	Print("post-loop")
+	
+	return strItems
+end
+
+function MailAutoText:UpdateMessageBody(strMessageBody)
+	Print("Updating message body")
+	if type(strMessageBody) == "string" then
+		Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(strMessageBody)
+	end
 end
 
 function MailAutoText:CashAmountChanged()
