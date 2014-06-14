@@ -2,8 +2,6 @@ require "Window"
 require "GameLib"
 require "Apollo"
  
---local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.0").tPackage:NewAddon("MailAutoText", false, {})
-
 local MailAutoText = {}
 
 function MailAutoText:new(o)
@@ -30,13 +28,9 @@ end
 function MailAutoText:OnMailAddAttachment(nValue)
 	local mail = Apollo.GetAddon("Mail")
 
-	Print("Yarr: " .. nValue)
-	
 	-- Get id of item just added to message, and get detailed item info
 	local itemId = MailSystemLib.GetItemFromInventoryId(nValue):GetItemId()
 	local itemDetails = Item.GetDetailedInfo(itemId)
-	
-	Print("item id: " .. itemId)
 	
 	-- Update message subject if not already specified
 	local currentSubject = mail.luaComposeMail.wndSubjectEntry:GetText()
@@ -44,11 +38,16 @@ function MailAutoText:OnMailAddAttachment(nValue)
 		mail.luaComposeMail.wndSubjectEntry:SetText("Sending items")
 	end
 	
+	-- Add a line of text to the message body
 	local currentMailBody = mail.luaComposeMail.wndMessageEntryText:GetText()
-	mail.luaComposeMail.wndMessageEntryText:SetText(currentMailBody .. "\n" .. itemDetails.tPrimary.strName)
-	
+	if currentMailBody == nil or currentMailBody == "" then
+		-- Replace entire contents (to avoid blank lines)
+		mail.luaComposeMail.wndMessageEntryText:SetText(itemDetails.tPrimary.strName)
+	else
+		-- Append line
+		mail.luaComposeMail.wndMessageEntryText:SetText(currentMailBody .. "\n" .. itemDetails.tPrimary.strName)
+	end
 end
-
 
 local MailAutoTextInst = MailAutoText:new()
 MailAutoTextInst:Init()
