@@ -17,8 +17,20 @@ function MailAutoText:HookMailModificationFunctions()
 	MailAutoText.fMailAttachmentRemoved = Apollo.GetAddon("Mail").luaComposeMail.OnClickAttachment
 	Apollo.GetAddon("Mail").luaComposeMail.OnClickAttachment = MailAutoText.ItemAttachmentRemoved
 	
-	MailAutoText.fMainMoneyAttached = Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged
+	MailAutoText.fMailMoneyAttached = Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged
 	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.CashAmountChanged
+	
+	MailAutoText.fMailMoneyCODOn = Apollo.GetAddon("Mail").luaComposeMail.OnMoneyCODCheck
+	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.MoneyCODOn 
+	
+	MailAutoText.fMailMoneyCODOff = Apollo.GetAddon("Mail").luaComposeMail.OnMoneyCODUncheck
+	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.MoneyCODOff 
+	
+	MailAutoText.fMailMoneySendOnn = Apollo.GetAddon("Mail").luaComposeMail.OnMoneySendCheck
+	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.MoneySendOn 
+	
+	MailAutoText.fMailMoneySendOff = Apollo.GetAddon("Mail").luaComposeMail.OnMoneySendUncheck
+	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.MoneySendOff
 end
 
 function MailAutoText:ItemAttachmentAdded(nValue)
@@ -103,6 +115,22 @@ function MailAutoText:CashAmountChanged()
 	--Print(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount().. "added")
 end
 
+function MailAutoText:MoneyCODOn()
+	-- Remove currency line and update body
+end
+
+function MailAutoText:MoneyCODOff()
+	-- Remove COD line and update body
+end
+
+function MailAutoText:MoneySendOn()
+	-- Remove COD line and update body
+end
+
+function MailAutoText:MoneySendOff()
+	-- Remove currency line and update body
+end
+
 function MailAutoText:GoldPrettyPrint(amount)
 	local amount_string = tostring(amount)
 	local return_string = ""
@@ -126,5 +154,4 @@ function MailAutoText:GoldPrettyPrint(amount)
 	
 	-- return(return_string)
 	Print(return_string)
-	
 end
