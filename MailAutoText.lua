@@ -29,7 +29,8 @@ end
 
 function MailAutoText:OnMailAddAttachment()
 	Print("Yarr!")
-	Apollo.GetAddon("Mail")
+	Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText("Yarr fra addon?")
+	Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:SetText("Yarr fra addon subject?")
 end
 
 
