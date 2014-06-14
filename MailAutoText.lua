@@ -14,10 +14,13 @@ end
 
 function MailAutoText:HookMailModificationFunctions() 
 	Print("Hooking mail functions")
-	
+	-- self:Hook(Apollo.GetAddon("Mail").luaComposeMail, "OnMailAddAttachment", self.OnCashAmountChanged)
 	-- Store ref to Mail's attachment removed function and replace with own
 	MailAutoText.fMailAttachmentRemoved = Apollo.GetAddon("Mail").luaComposeMail.OnClickAttachment
 	Apollo.GetAddon("Mail").luaComposeMail.OnClickAttachment = MailAutoText.ItemAttachementRemoved
+	
+	MailAutoText.fMainMoneyAttached = Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged
+	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.CashAmountChanged
 end
 
 function MailAutoText:ItemAttachementAdded(nValue)
@@ -52,4 +55,9 @@ function MailAutoText:ItemAttachementRemoved(wndHandler, wndControl)
 	
 	-- Then add custom handling
 	Print("Item attachment removed")
+end
+
+function MailAutoText:CashAmountChanged()
+	
+	Print("monies!")
 end
