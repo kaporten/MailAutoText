@@ -21,16 +21,16 @@ function MailAutoText:HookMailModificationFunctions()
 	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.CashAmountChanged
 	
 	MailAutoText.fMailMoneyCODOn = Apollo.GetAddon("Mail").luaComposeMail.OnMoneyCODCheck
-	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.MoneyCODOn 
+	Apollo.GetAddon("Mail").luaComposeMail.OnMoneyCODCheck = MailAutoText.MoneyCODOn 
 	
 	MailAutoText.fMailMoneyCODOff = Apollo.GetAddon("Mail").luaComposeMail.OnMoneyCODUncheck
-	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.MoneyCODOff 
+	Apollo.GetAddon("Mail").luaComposeMail.OnMoneyCODUncheck = MailAutoText.MoneyCODOff 
 	
-	MailAutoText.fMailMoneySendOnn = Apollo.GetAddon("Mail").luaComposeMail.OnMoneySendCheck
-	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.MoneySendOn 
+	MailAutoText.fMailMoneySendOn = Apollo.GetAddon("Mail").luaComposeMail.OnMoneySendCheck
+	Apollo.GetAddon("Mail").luaComposeMail.OnMoneySendCheck = MailAutoText.MoneySendOn 
 	
 	MailAutoText.fMailMoneySendOff = Apollo.GetAddon("Mail").luaComposeMail.OnMoneySendUncheck
-	Apollo.GetAddon("Mail").luaComposeMail.OnCashAmountChanged = MailAutoText.MoneySendOff
+	Apollo.GetAddon("Mail").luaComposeMail.OnMoneySendUncheck = MailAutoText.MoneySendOff
 end
 
 function MailAutoText:ItemAttachmentAdded(nValue)
@@ -144,28 +144,39 @@ function MailAutoText:UpdateMessage()
 	Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(newBody)
 end
 
-function MailAutoText:CashAmountChanged()
-	MailAutoText:GoldPrettyPrint(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount())
-	--Print(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount().. "added")
+--function MailAutoText:CashAmountChanged()
+--	MailAutoText:GoldPrettyPrint(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount())
+--end
+
+function MailAutoText:GetCreditAcount()
+	return MailAutoText:GoldPrettyPrint(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount())
 end
 
 function MailAutoText:MoneyCODOn()
-	-- Remove currency line and update body
+	MailAutoText.fMailMoneyCODOn(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
+	--MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:MoneyCODOff()
-	-- Remove COD line and update body
+	MailAutoText.fMailMoneyCODOff(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
+	--MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:MoneySendOn()
-	-- Remove COD line and update body
+	MailAutoText.fMailMoneySendOn(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
+	--MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:MoneySendOff()
-	-- Remove currency line and update body
+	MailAutoText.fMailMoneySendOff(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
+	--MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:GoldPrettyPrint(amount)
+	if amount == 0 then
+		return 0
+	end
+	
 	local amount_string = tostring(amount)
 	local return_string = ""
 	copper = string.sub(amount_string, -2, -1)
