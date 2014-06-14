@@ -28,13 +28,25 @@ function MailAutoText:OnLoad()
 end
 
 function MailAutoText:OnMailAddAttachment(nValue)
+	local mail = Apollo.GetAddon("Mail")
+
 	Print("Yarr: " .. nValue)
+	
+	-- Get id of item just added to message, and get detailed item info
 	local itemId = MailSystemLib.GetItemFromInventoryId(nValue):GetItemId()
-	Print("item id: " .. itemId)
 	local itemDetails = Item.GetDetailedInfo(itemId)
-	--Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText("Yarr fra addon?")
-	Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(itemDetails.tPrimary.strName)
-	Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:SetText("Yarr fra addon subject?")
+	
+	Print("item id: " .. itemId)
+	
+	-- Update message subject if not already specified
+	local currentSubject = mail.luaComposeMail.wndSubjectEntry:GetText()
+	if currentSubject == nil or currentSubject == "" then
+		mail.luaComposeMail.wndSubjectEntry:SetText("Sending items")
+	end
+	
+	local currentMailBody = mail.luaComposeMail.wndMessageEntryText:GetText()
+	mail.luaComposeMail.wndMessageEntryText:SetText(currentMailBody .. "\n" .. itemDetails.tPrimary.strName)
+	
 end
 
 
