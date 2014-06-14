@@ -2,16 +2,29 @@ require "Window"
 require "GameLib"
 require "Apollo"
  
-local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.0").tPackage:NewAddon("MailAutoText", false, {}, "Gemini:Hook-1.0")
+local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
 
 function MailAutoText:OnEnable()
 	-- TODO: Check if "Mail" is installed (or have been replaced)
-	Apollo.RegisterEventHandler("MailAddAttachment", "OnMailAddAttachment", self)
+	Apollo.RegisterEventHandler("MailAddAttachment", "ItemAttachementAdded", self)
+	
+	-- Hooking can only be done once the "luaMailCompose" object is initialized inside Mail
+	self:PostHook(Apollo.GetAddon("Mail"), "ComposeMail", self.HookMailModificationFunctions)
 end
 
-function MailAutoText:OnMailAddAttachment(nValue)
-	local mail = Apollo.GetAddon("Mail")
+function MailAutoText:HookMailModificationFunctions() 
+	Print("Hooking mail functions")
+	
+	-- Store ref to Mail's attachment removed function and replace with own
+	MailAutoText.fMailAttachmentRemoved = Apollo.GetAddon("Mail").luaComposeMail.OnClickAttachment
+	Apollo.GetAddon("Mail").luaComposeMail.OnClickAttachment = MailAutoText.ItemAttachementRemoved
+end
 
+function MailAutoText:ItemAttachementAdded(nValue)
+	Print("Item attachment added")
+	
+	local mail = Apollo.GetAddon("Mail")	
+	
 	-- Get id of item just added to message, and get detailed item info
 	local itemId = MailSystemLib.GetItemFromInventoryId(nValue):GetItemId()
 	local itemDetails = Item.GetDetailedInfo(itemId)
@@ -31,4 +44,12 @@ function MailAutoText:OnMailAddAttachment(nValue)
 		-- Append line
 		mail.luaComposeMail.wndMessageEntryText:SetText(currentMailBody .. "\n" .. itemDetails.tPrimary.strName)
 	end
+end
+
+function MailAutoText:ItemAttachementRemoved(wndHandler, wndControl)
+	-- Direct call to original Mail "attachment removed" function
+	MailAutoText.fMailAttachmentRemoved(Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
+	
+	-- Then add custom handling
+	Print("Item attachment removed")
 end
