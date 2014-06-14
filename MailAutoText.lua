@@ -27,9 +27,13 @@ function MailAutoText:OnLoad()
 	Apollo.RegisterEventHandler("MailAddAttachment", "OnMailAddAttachment", self)
 end
 
-function MailAutoText:OnMailAddAttachment()
-	Print("Yarr!")
-	Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText("Yarr fra addon?")
+function MailAutoText:OnMailAddAttachment(nValue)
+	Print("Yarr: " .. nValue)
+	local itemId = MailSystemLib.GetItemFromInventoryId(nValue):GetItemId()
+	Print("item id: " .. itemId)
+	local itemDetails = Item.GetDetailedInfo(itemId)
+	--Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText("Yarr fra addon?")
+	Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(itemDetails.tPrimary.strName)
 	Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:SetText("Yarr fra addon subject?")
 end
 
