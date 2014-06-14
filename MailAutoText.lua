@@ -78,6 +78,7 @@ function MailAutoText:GenerateItemListString(newAttachmentId)
 		allAttachmentIds[#allAttachmentIds+1] = newAttachmentId
 	end
 	
+	-- Concatenate list of items
 	local strItems = ""
 	for _,attachmentId in ipairs(allAttachmentIds) do
 		local itemId = MailSystemLib.GetItemFromInventoryId(attachmentId):GetItemId()
@@ -100,14 +101,47 @@ function MailAutoText:GenerateSubjectString()
 end
 
 function MailAutoText:UpdateMessage()
+	local bCreditsText = MailAutoText.strCredits ~= nil and MailAutoText.strCredits ~= ""
+	local bItemListText = MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= ""
+	
 	-- Update subject
 	Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:SetText(MailAutoText:GenerateSubjectString())
 
 	-- Update body
-	-- TODO: also include cash
-	if type(MailAutoText.strItemList) == "string" then
-		Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(MailAutoText.strItemList)
+	local currentBody = Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:GetText()
+	
+	-- Cut off the bottom half (our auto-text) of the msg body
+	local newBody = ""
+	if currentBody ~= nil then
+		local index = string.find(currentBody, "Attachments:")
+		
+		if index == nil then
+			newBody = currentBody
+		else
+			local strFirst = string.sub(currentBody, 1, (index-1))
+			newBody = strFirst
+		end
 	end
+	
+	-- Append "Attachments" header if any attachments are identified
+	if bCreditsText == true or bItemListText == true then
+		if newBody == "" then
+			newBody = "Attachments:\n"
+		else
+			newBody = newBody .. "Attachments:\n"
+		end
+	end
+	
+	-- Append credits text if sending credits
+	if bCreditsText == true then
+		newBody = newBody .. "Credits: " .. " X dollahs"
+	end
+	
+	if bItemListText == true then
+		newBody = newBody .. MailAutoText.strItemList
+	end	
+	
+	Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(newBody)
 end
 
 function MailAutoText:CashAmountChanged()
