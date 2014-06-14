@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Addon Author="porten" APIVersion="8" Name="MailAutoText" Description="WildStar addon for automatically filling new mail subject and body.">
+    <Script Name="Libs/GeminiAddon/GeminiAddon.lua"/>
+	<Script Name="MailAutoText.lua"/>
+    <Form Name="MailAutoText.xml"/>
+</Addon>
