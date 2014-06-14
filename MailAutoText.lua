@@ -31,9 +31,10 @@ function MailAutoText:ItemAttachmentAdded(nValue)
 	if currentSubject == nil or currentSubject == "" then
 		Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:SetText("Sending items")
 	end
-
-	-- Update message body
-	MailAutoText:UpdateMessageBody(MailAutoText:GenerateItemListString(nValue))
+	
+	-- Calculate new item-string and trigger body-update
+	MailAutoText.strItemList = MailAutoText:GenerateItemListString(nValue)
+	MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)	
@@ -49,13 +50,10 @@ function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
 		return
 	end
 	
-	-- Update message body
-	MailAutoText:UpdateMessageBody(MailAutoText:GenerateItemListString())
-	
-	-- Then add custom handling
-	Print("Item attachment removed")
+	-- Calculate new item-string and trigger body-update
+	MailAutoText.strItemList = MailAutoText:GenerateItemListString()
+	MailAutoText:UpdateMessage()
 end
-
 
 function MailAutoText:GenerateItemListString(newAttachmentId)
 	
@@ -78,23 +76,20 @@ function MailAutoText:GenerateItemListString(newAttachmentId)
 		allAttachmentIds[#allAttachmentIds+1] = newAttachmentId
 	end
 	
-	Print("Lenght of attachment list: " .. #allAttachmentIds)
-	
 	local strItems = ""
 	for _,attachmentId in ipairs(allAttachmentIds) do
 		local itemId = MailSystemLib.GetItemFromInventoryId(attachmentId):GetItemId()
 		local itemDetails = Item.GetDetailedInfo(itemId)
 		strItems = strItems .. itemDetails.tPrimary.strName .. "\n"
 	end
-	Print("post-loop")
 	
 	return strItems
 end
 
-function MailAutoText:UpdateMessageBody(strMessageBody)
+function MailAutoText:UpdateMessage()
 	Print("Updating message body")
-	if type(strMessageBody) == "string" then
-		Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(strMessageBody)
+	if type(MailAutoText.strItemList) == "string" then
+		Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(MailAutoText.strItemList)
 	end
 end
 
