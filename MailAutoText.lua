@@ -68,6 +68,32 @@ function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
 end
 
 function MailAutoText:CashAmountChanged()
+	MailAutoText:GoldPrettyPrint(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount())
+	--Print(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount().. "added")
+end
+
+function MailAutoText:GoldPrettyPrint(amount)
+	local amount_string = tostring(amount)
+	local return_string = ""
+	copper = string.sub(amount_string, -2, -1)
+	silver = string.sub(amount_string, -4, -3)
+	gold = string.sub(amount_string, -6, -5)
+	plat = string.sub(amount_string, -8, -7)
 	
-	Print("monies!")
+	if plat ~= nil and plat ~= "" then
+		return_string = return_string .. plat .. " platinum "
+	end
+	if gold ~= nil and gold ~= "" then
+		return_string = return_string .. gold .. " gold "
+	end
+	if silver ~= nil and silver ~= "" then 
+		return_string = return_string .. silver .. " silver "
+	end
+	if copper ~= nil and copper ~= "" then
+		return_string = return_string .. copper .. " copper"
+	end
+	
+	-- return(return_string)
+	Print(return_string)
+	
 end
