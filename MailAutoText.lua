@@ -191,24 +191,45 @@ function MailAutoText:GoldPrettyPrint(amount)
 	
 	local amount_string = tostring(amount)
 	local return_string = ""
-	copper = string.sub(amount_string, -2, -1)
-	silver = string.sub(amount_string, -4, -3)
-	gold = string.sub(amount_string, -6, -5)
-	plat = string.sub(amount_string, -8, -7)
+	local copper = string.sub(amount_string, -2, -1)
+	local silver = string.sub(amount_string, -4, -3)
+	local gold = string.sub(amount_string, -6, -5)
+	local plat = string.sub(amount_string, -8, -7)
+
+	local strResult = ""
+	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(plat, "Platinum"))
+	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(gold, "Gold"))
+	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(silver, "Silver"))
+	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(copper, "Copper"))
+		
+	return(strResult)
+end
+
+function MailAutoText:AppendDenomination(strFull, strAmount)
+	local strResult = strFull
 	
-	if plat ~= nil and plat ~= "" then
-		return_string = return_string .. plat .. " Platinum "
-	end
-	if gold ~= nil and gold ~= "" then
-		return_string = return_string .. gold .. " Gold "
-	end
-	if silver ~= nil and silver ~= "" then 
-		return_string = return_string .. silver .. " Silver "
-	end
-	if copper ~= nil and copper ~= "" then
-		return_string = return_string .. copper .. " Copper"
+	-- If we're adding text to an existing string, insert a space
+	if string.len(strResult) > 0 and string.len(strAmount) > 0 then
+		strResult = strResult .. " " 
 	end
 	
-	return(return_string)
-	--Print(return_string)
+	-- Added current denom-string (if any) to the existing string
+	if string.len(strAmount) > 0 then
+		strResult = strResult .. strAmount
+	end
+	
+	return strResult
+end
+
+function MailAutoText:PrettyPrintDenomination(strAmount, strDenomination)
+	local strResult = ""
+	if strAmount ~= nil and strAmount ~= "" and strAmount ~= "00" then
+		if string.sub(strAmount, 1, 1) == "0" then
+			-- Don't print "04 Silver", just "4 Silver"
+			strResult = string.sub(strAmount, 2, 2) .. " " .. strDenomination
+		else
+			strResult = strAmount .. " " .. strDenomination
+		end
+	end
+	return strResult
 end
