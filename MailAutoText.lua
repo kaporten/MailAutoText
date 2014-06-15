@@ -4,7 +4,9 @@ require "GameLib"
 require "Apollo"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {1, 1, 0}
+MailAutoText.ADDON_VERSION = {1, 2, 0}
+
+local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
 function MailAutoText:OnEnable()
     -- TODO: Check if "Mail" is installed (or have been replaced)
@@ -70,7 +72,7 @@ end
 
 function MailAutoText:MoneySendOff()
     MailAutoText.CreditsSend = false
-    MailAutoText.CreditsSend = false
+    MailAutoText.CreditsCOD = false
     MailAutoText:UpdateMessage()
 end
 
@@ -158,14 +160,51 @@ function MailAutoText:GenerateItemListString(addedAttachmentId, removedAttachmen
 end
 
 function MailAutoText:GenerateSubjectString()
-    -- Update message subject if not already specified
+--Print("Gensub, cash " .. MailAutoText.SendCash)
+    -- Get current subject string from GUI
     local currentSubject = Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:GetText()
-    if currentSubject == nil or currentSubject == "" then
-        -- TODO: different text depending on actual content
-        return "Sending items"
-    end
+	
+	-- Check if current subject is an auto-generated one (or empty). If so, replace with updated auto-generated one
+	local bUpdate = false
+	if currentSubject == "" then 
+		bUpdate = true
+	else
+		for k,v in pairs(L) do
+			if v == currentSubject then 
+				bUpdate = true
+				break
+			end
+		end
+	end
+	
+	-- Not an auto-generated subject? just return current subject then
+	if bUpdate == false then
+		Print("Keeping current subject")
+		return currentSubject
+	end
+	
+	-- Sending items COD?
+	if MailAutoText.CreditsCOD then
+		return L["Subject_COD"]
+	end
+	
+	-- Sending items and cash?
+	if MailAutoText.CreditsSend == true and MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= "" then
+		return L["Subject_Both"]
+	end
+	
+	-- Sending items only?
+	if MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= "" then
+		return L["Subject_Items"]
+	end
 
-    return currentSubject
+	-- Sending cash only?
+	if MailAutoText.CreditsSend == true then
+		return L["Subject_Cash"]
+	end
+	
+	-- Not sending anything, no special subject autocompletion required.
+	return currentSubject	
 end
 
 function MailAutoText:UpdateMessage()
