@@ -151,9 +151,16 @@ function MailAutoText:GenerateItemListString(addedAttachmentId, removedAttachmen
     -- Concatenate list of items
     local strItems = ""
     for _,attachmentId in ipairs(allAttachmentIds) do
-        local itemId = MailSystemLib.GetItemFromInventoryId(attachmentId):GetItemId()
+		local itemData = MailSystemLib.GetItemFromInventoryId(attachmentId)
+        local itemId = itemData:GetItemId()
+		local stackCount = itemData:GetStackCount()
         local itemDetails = Item.GetDetailedInfo(itemId)
-        strItems = strItems .. itemDetails.tPrimary.strName .. "\n"
+        
+		strItems = strItems .. itemDetails.tPrimary.strName		
+		if stackCount > 1 then
+			strItems = strItems .. " (x" .. stackCount .. ")"
+		end
+		strItems = strItems .. "\n"
     end
 
     return strItems
