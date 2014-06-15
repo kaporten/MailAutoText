@@ -28,6 +28,11 @@ function MailAutoText:HookMailModificationFunctions()
 end
 
 function MailAutoText:ItemAttachmentAdded(nValue)
+	-- Event fired at times we're not actually composing mail, such as right-clicking to equip items
+	if Apollo.GetAddon("Mail").luaComposeMail == nil then
+		return
+	end
+
     -- Calculate new item-string and trigger body-update
     MailAutoText.strItemList = MailAutoText:GenerateItemListString(nValue, nil)
     MailAutoText:UpdateMessage()
