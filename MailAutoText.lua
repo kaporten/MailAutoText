@@ -160,7 +160,6 @@ function MailAutoText:GenerateItemListString(addedAttachmentId, removedAttachmen
 end
 
 function MailAutoText:GenerateSubjectString()
---Print("Gensub, cash " .. MailAutoText.SendCash)
     -- Get current subject string from GUI
     local currentSubject = Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:GetText()
 	
@@ -179,7 +178,6 @@ function MailAutoText:GenerateSubjectString()
 	
 	-- Not an auto-generated subject? just return current subject then
 	if bUpdate == false then
-		Print("Keeping current subject")
 		return currentSubject
 	end
 	
