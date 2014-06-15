@@ -226,7 +226,7 @@ function MailAutoText:UpdateMessage()
     -- Cut off the bottom half (our auto-text) of the msg body
     local newBody = ""
     if currentBody ~= nil then
-        local index = string.find(currentBody, "Attachments:")
+        local index = string.find(currentBody, Apollo.GetString("CRB_Attachments_1"))
 
         if index == nil then
             newBody = currentBody
@@ -239,9 +239,9 @@ function MailAutoText:UpdateMessage()
     -- Append "Attachments" header if any attachments are identified
     if bCreditsText == true or bItemListText == true then
         if newBody == "" then
-            newBody = "Attachments:\n"
+            newBody = Apollo.GetString("CRB_Attachments_1") .. "\n"
         else
-            newBody = newBody .. "Attachments:\n"
+            newBody = newBody .. Apollo.GetString("CRB_Attachments_1") .. "\n"
         end
     end
 
