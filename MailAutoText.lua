@@ -3,6 +3,7 @@ require "GameLib"
 require "Apollo"
  
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
+MailAutoText.ADDON_VERSION = {1, 1, 0}
 
 function MailAutoText:OnEnable()
 	-- TODO: Check if "Mail" is installed (or have been replaced)
