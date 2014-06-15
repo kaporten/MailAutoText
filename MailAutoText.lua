@@ -27,7 +27,7 @@ end
 
 function MailAutoText:ItemAttachmentAdded(nValue)
     -- Calculate new item-string and trigger body-update
-    MailAutoText.strItemList = MailAutoText:GenerateItemListString(nValue)
+    MailAutoText.strItemList = MailAutoText:GenerateItemListString(nValue, nil)
     MailAutoText:UpdateMessage()
 end
 
@@ -40,113 +40,14 @@ function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
     if iAttach == nil then
         return
     end
-
+		
     -- Calculate new item-string and trigger body-update
     MailAutoText.strItemList = MailAutoText:GenerateItemListString(nil, iAttach)
     MailAutoText:UpdateMessage()
 end
 
-function MailAutoText:GenerateItemListString(addedAttachmentId, removedAttachmentId)
-
-    -- Deep-copy "arAttachments" (except removed one) into local array
-    local allAttachmentIds = {}
-    for k,v in ipairs(Apollo.GetAddon("Mail").luaComposeMail.arAttachments) do
-		if v ~= removedAttachmentId then
-			allAttachmentIds[#allAttachmentIds] = v
-		end
-    end
-
-    -- Check if the newly-added item (if any) already exist in array
-    local bExists = false
-    for k,v in ipairs(allAttachmentIds) do
-        if v == addedAttachmentId then
-            bExists = true
-        end
-    end
-
-    -- Add new item to end of array if not present
-    if bExists == false then
-        allAttachmentIds[#allAttachmentIds+1] = addedAttachmentId
-    end
-
-    -- Concatenate list of items
-    local strItems = ""
-    for _,attachmentId in ipairs(allAttachmentIds) do
-        local itemId = MailSystemLib.GetItemFromInventoryId(attachmentId):GetItemId()
-        local itemDetails = Item.GetDetailedInfo(itemId)
-        strItems = strItems .. itemDetails.tPrimary.strName .. "\n"
-    end
-
-    return strItems
-end
-
-function MailAutoText:GenerateSubjectString()
-    -- Update message subject if not already specified
-    local currentSubject = Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:GetText()
-    if currentSubject == nil or currentSubject == "" then
-        -- TODO: different text depending on actual content
-        return "Sending items"
-    end
-
-    return currentSubject
-end
-
-function MailAutoText:UpdateMessage()
-    local bCreditsText = MailAutoText.GetCreditAcount() ~= nil
-    local bItemListText = MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= ""
-
-    -- Update subject
- Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:SetText(MailAutoText:GenerateSubjectString())
-
-    -- Update body
-    local currentBody = Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:GetText()
-
-    -- Cut off the bottom half (our auto-text) of the msg body
-    local newBody = ""
-    if currentBody ~= nil then
-        local index = string.find(currentBody, "Attachments:")
-
-        if index == nil then
-            newBody = currentBody
-        else
-            local strFirst = string.sub(currentBody, 1, (index-1))
-            newBody = strFirst
-        end
-    end
-
-    -- Append "Attachments" header if any attachments are identified
-    if bCreditsText == true or bItemListText == true then
-        if newBody == "" then
-            newBody = "Attachments:\n"
-        else
-            newBody = newBody .. "Attachments:\n"
-        end
-    end
-
-    -- Append credits text if sending credits
-    if bCreditsText == true then
-        if MailAutoText.CreditsCOD == true then
-            newBody = newBody .. "Cost: " .. MailAutoText.GetCreditAcount() .. "\n"
-        end
-        if MailAutoText.CreditsSend == true then
-            newBody = newBody .. "Credits: " .. MailAutoText.GetCreditAcount() .. "\n"
-        end
-    end
-
-    if bItemListText == true then
-        newBody = newBody .. MailAutoText.strItemList
-    end
-
- Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(newBody)
-end
-
-function MailAutoText:CashAmountChanged()
- --MailAutoText:GoldPrettyPrint(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount())
+function MailAutoText:CashAmountChanged()	
     MailAutoText:UpdateMessage()
-end
-
-function MailAutoText:GetCreditAcount()
-    return MailAutoText:GoldPrettyPrint(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount())
 end
 
 function MailAutoText:MoneyCODOn()
@@ -175,7 +76,7 @@ end
 
 function MailAutoText:GoldPrettyPrint(amount)
     if amount == 0 then
-        return nil
+        return ""
     end
 
     local amount_string = tostring(amount)
@@ -221,4 +122,101 @@ function MailAutoText:PrettyPrintDenomination(strAmount, strDenomination)
         end
     end
     return strResult
+end
+
+function MailAutoText:GenerateItemListString(addedAttachmentId, removedAttachmentIndex)
+
+    -- Deep-copy "arAttachments" (except removed index) into local array
+    local allAttachmentIds = {}
+    for k,v in ipairs(Apollo.GetAddon("Mail").luaComposeMail.arAttachments) do
+		if removedAttachmentIndex == nil or removedAttachmentIndex ~= k then
+			allAttachmentIds[#allAttachmentIds+1] = v
+		end
+    end
+
+    -- Check if the newly-attached item (if any) already exist in array, since we do not control the event call-order
+    local bExists = false
+    for k,v in ipairs(allAttachmentIds) do
+        if v == addedAttachmentId then
+            bExists = true
+        end
+    end
+
+    -- Add new item to end of array if not present
+    if bExists == false then
+        allAttachmentIds[#allAttachmentIds+1] = addedAttachmentId
+    end
+
+    -- Concatenate list of items
+    local strItems = ""
+    for _,attachmentId in ipairs(allAttachmentIds) do
+        local itemId = MailSystemLib.GetItemFromInventoryId(attachmentId):GetItemId()
+        local itemDetails = Item.GetDetailedInfo(itemId)
+        strItems = strItems .. itemDetails.tPrimary.strName .. "\n"
+    end
+
+    return strItems
+end
+
+function MailAutoText:GenerateSubjectString()
+    -- Update message subject if not already specified
+    local currentSubject = Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:GetText()
+    if currentSubject == nil or currentSubject == "" then
+        -- TODO: different text depending on actual content
+        return "Sending items"
+    end
+
+    return currentSubject
+end
+
+function MailAutoText:UpdateMessage()
+	local strCredits = MailAutoText:GoldPrettyPrint(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount())
+    local bCreditsText = (MailAutoText.CreditsSend or MailAutoText.CreditsCOD) and strCredits ~= ""
+    local bItemListText = MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= ""
+
+    -- Update subject
+	Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:SetText(MailAutoText:GenerateSubjectString())
+
+    -- Update body
+    local currentBody = Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:GetText()
+
+    -- Cut off the bottom half (our auto-text) of the msg body
+    local newBody = ""
+    if currentBody ~= nil then
+        local index = string.find(currentBody, "Attachments:")
+
+        if index == nil then
+            newBody = currentBody
+        else
+            local strFirst = string.sub(currentBody, 1, (index-1))
+            newBody = strFirst
+        end
+    end
+
+    -- Append "Attachments" header if any attachments are identified
+    if bCreditsText == true or bItemListText == true then
+        if newBody == "" then
+            newBody = "Attachments:\n"
+        else
+            newBody = newBody .. "Attachments:\n"
+        end
+    end
+
+    -- Append credits text if sending credits
+    if bCreditsText == true then		
+        if MailAutoText.CreditsCOD == true then
+            newBody = newBody .. "Cost: " .. strCredits .. "\n"
+        end
+        if MailAutoText.CreditsSend == true then
+            newBody = newBody .. "Credits: " .. strCredits .. "\n"
+        end
+    end
+
+	-- Append itemlist if sending items
+    if bItemListText == true then
+        newBody = newBody .. MailAutoText.strItemList
+    end
+
+	-- Update body
+	Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(newBody)
 end
