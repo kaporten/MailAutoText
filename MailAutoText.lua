@@ -74,17 +74,16 @@ function MailAutoText:MoneySendOff()
     MailAutoText:UpdateMessage()
 end
 
-function MailAutoText:GoldPrettyPrint(amount)
-    if amount == 0 then
+function MailAutoText:GoldPrettyPrint(monAmount)
+    if monAmount == 0 then
         return ""
     end
 
-    local amount_string = tostring(amount)
-    local return_string = ""
-    local copper = string.sub(amount_string, -2, -1)
-    local silver = string.sub(amount_string, -4, -3)
-    local gold = string.sub(amount_string, -6, -5)
-    local plat = string.sub(amount_string, -8, -7)
+    local strAmount = tostring(monAmount)
+    local copper = string.sub(strAmount, -2, -1)
+    local silver = string.sub(strAmount, -4, -3)
+    local gold = string.sub(strAmount, -6, -5)
+    local plat = string.sub(strAmount, -8, -7)
 
     local strResult = ""
     strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(plat, "Platinum"))
