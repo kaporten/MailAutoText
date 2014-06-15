@@ -44,6 +44,9 @@ function MailAutoText:HookMailModificationFunctions()
     MailAutoText:PostHook(luaMail, "OnMoneyCODUncheck", MailAutoText.UpdateMessage) -- "Request" unchecked
     MailAutoText:PostHook(luaMail, "OnMoneySendCheck", MailAutoText.UpdateMessage) -- "Send" checked
     MailAutoText:PostHook(luaMail, "OnMoneySendUncheck", MailAutoText.UpdateMessage) -- "Send unchecked
+
+	-- If mail is closed or sent, clear the generated item-list so it is "fresh" for next mail
+	MailAutoText:PostHook(luaMail, "OnClosed", function() MailAutoText.strItemList = "" end) -- Mail is closed for whatever reason (cancelled/sent)
 end
 
 --[[ 
