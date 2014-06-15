@@ -23,7 +23,21 @@ end
 
 -- Sets up hooks for client-side mail content modifications
 function MailAutoText:HookMailModificationFunctions()	    
-	local luaMail = Apollo.GetAddon("Mail").luaComposeMail	
+	local luaMail = Apollo.GetAddon("Mail").luaComposeMail
+	
+	--[[
+		Only hook luaComposeMail functions if they are not already hooked.
+		If user clicks "Begin New Mail" multiple times, it will just re-show the active luaComposeMail
+		In that case, don't re-hook since that causes errors.
+		
+		Check if luaComposeMail functions are already hooked by checking the OnClickAttachment function
+		for existing hooks.
+	]]	
+	bAlreadyHooked = MailAutoText:IsHooked(luaMail, "OnClickAttachment")
+	if bAlreadyHooked then 
+		return 
+	end	
+	
     MailAutoText:RawHook(luaMail, "OnClickAttachment", MailAutoText.ItemAttachmentRemoved) -- Attachment removed (intentionally non-Post! PostHook breaks stuff here)
     MailAutoText:PostHook(luaMail, "OnCashAmountChanged", MailAutoText.UpdateMessage) -- Cash amount changed
     MailAutoText:PostHook(luaMail, "OnMoneyCODCheck", MailAutoText.UpdateMessage) -- "Request" checked
