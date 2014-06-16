@@ -33,7 +33,7 @@ function MailAutoText:HookMailModificationFunctions()
 		Check if luaComposeMail functions are already hooked by checking the OnClickAttachment function
 		for existing hooks.
 	]]	
-	bAlreadyHooked = MailAutoText:IsHooked(luaMail, "OnClickAttachment")
+	local bAlreadyHooked = MailAutoText:IsHooked(luaMail, "OnClickAttachment")
 	if bAlreadyHooked then 
 		return 
 	end	
