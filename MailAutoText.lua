@@ -4,26 +4,41 @@ require "GameLib"
 require "Apollo"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {1, 3, 0}
+MailAutoText.ADDON_VERSION = {1, 4, 0}
 
+local M = Apollo.GetAddon("Mail")
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
+local log
 
 function MailAutoText:OnEnable()
-	-- Server-side event fired when an attachment has been added to an open mail
-    Apollo.RegisterEventHandler("MailAddAttachment", "ItemAttachmentAdded", self) -- Attachment added
+	local GeminiLogging = Apollo.GetPackage("Gemini:Logging-1.2").tPackage
+	log = GeminiLogging:GetLogger({
+		level = GeminiLogging.FATAL,
+		pattern = "%d %n %c %l - %m",
+		appender = "GeminiConsole"
+	})
+	MailAutoText.log = log -- store ref for GeminiConsole-access to loglevel
+	log:info("Initializing addon 'MailAutoText'")
 
+	-- Server-side event fired when an attachment has been added to an open mail
+	Apollo.RegisterEventHandler("MailAddAttachment", "ItemAttachmentAdded", self) -- Attachment added
+	
 	--[[
 		Hooking into the mail composition GUI itself can only be done 
 		once the "luaMailCompose" object is initialized inside Mail. 
 		So posthook on the "compose mail" button-function, and set up 
 		futher hooks once there.
 	]]
-    MailAutoText:PostHook(Apollo.GetAddon("Mail"), "ComposeMail", MailAutoText.HookMailModificationFunctions)
+	MailAutoText:RawHook(M, "ComposeMail", MailAutoText.HookMailModificationFunctions)
 end
 
 -- Sets up hooks for client-side mail content modifications
-function MailAutoText:HookMailModificationFunctions()	    
-	local luaMail = Apollo.GetAddon("Mail").luaComposeMail
+function MailAutoText:HookMailModificationFunctions()
+	-- First, call the original ComposeMail function
+	MailAutoText.hooks[M]["ComposeMail"](M)
+	
+	log:debug("New Compose Mail window opened, hooking functions")
+	local luaMail = M.luaComposeMail
 	
 	--[[
 		Only hook luaComposeMail functions if they are not already hooked.
@@ -35,18 +50,20 @@ function MailAutoText:HookMailModificationFunctions()
 	]]	
 	local bAlreadyHooked = MailAutoText:IsHooked(luaMail, "OnClickAttachment")
 	if bAlreadyHooked then 
+		log:debug("Compose Mail was already hooked, skipping")
 		return 
 	end	
 	
-    MailAutoText:RawHook(luaMail, "OnClickAttachment", MailAutoText.ItemAttachmentRemoved) -- Attachment removed (intentionally non-Post! PostHook breaks stuff here)
-    MailAutoText:PostHook(luaMail, "OnCashAmountChanged", MailAutoText.UpdateMessage) -- Cash amount changed
-    MailAutoText:PostHook(luaMail, "OnMoneyCODCheck", MailAutoText.UpdateMessage) -- "Request" checked
-    MailAutoText:PostHook(luaMail, "OnMoneyCODUncheck", MailAutoText.UpdateMessage) -- "Request" unchecked
-    MailAutoText:PostHook(luaMail, "OnMoneySendCheck", MailAutoText.UpdateMessage) -- "Send" checked
-    MailAutoText:PostHook(luaMail, "OnMoneySendUncheck", MailAutoText.UpdateMessage) -- "Send unchecked
-
-	-- If mail is closed or sent, clear the generated item-list so it is "fresh" for next mail
-	MailAutoText:PostHook(luaMail, "OnClosed", function() MailAutoText.strItemList = "" end) -- Mail is closed for whatever reason (cancelled/sent)
+	
+	MailAutoText:RawHook(luaMail, "OnClickAttachment", MailAutoText.ItemAttachmentRemoved) -- Attachment removed (intentionally non-Post! PostHook breaks stuff here)
+	MailAutoText:RawHook(luaMail, "OnCashAmountChanged", MailAutoText.OnCashAmountChanged) -- Cash amount changed
+	MailAutoText:RawHook(luaMail, "OnMoneyCODCheck", MailAutoText.OnMoneyCODCheck) -- "Request" checked
+	MailAutoText:RawHook(luaMail, "OnMoneyCODUncheck", MailAutoText.OnMoneyCODUncheck) -- "Request" unchecked
+	MailAutoText:RawHook(luaMail, "OnMoneySendCheck", MailAutoText.OnMoneySendCheck) -- "Send" checked
+	MailAutoText:RawHook(luaMail, "OnMoneySendUncheck", MailAutoText.OnMoneySendUncheck) -- "Send unchecked	
+	MailAutoText:RawHook(luaMail, "OnClosed", MailAutoText.OnClosed) -- Mail is closed for whatever reason (cancelled/sent)
+	
+	log:debug("Compose Mail editing functions hooked")
 end
 
 --[[ 
@@ -55,65 +72,108 @@ end
 	attachments added/removed or credits-area changes.
 ]]
 
+function MailAutoText:OnCashAmountChanged()
+	log:debug("Cash amount changed")
+	MailAutoText.hooks[M.luaComposeMail]["OnCashAmountChanged"](M.luaComposeMail)	
+	MailAutoText:UpdateMessage() -- Trigger message subject/body update
+end
+
+function MailAutoText:OnMoneyCODCheck(wndHandler, wndControl)
+	log:debug("Request Money checked")
+	MailAutoText.hooks[M.luaComposeMail]["OnMoneyCODCheck"](M.luaComposeMail, wndHandler, wndControl)
+	MailAutoText:UpdateMessage() -- Trigger message subject/body update
+end
+
+function MailAutoText:OnMoneyCODUncheck(wndHandler, wndControl)
+	log:debug("Request Money unchecked")
+	MailAutoText.hooks[M.luaComposeMail]["OnMoneyCODUncheck"](M.luaComposeMail, wndHandler, wndControl)
+	MailAutoText:UpdateMessage() -- Trigger message subject/body update
+end
+
+function MailAutoText:OnMoneySendCheck(wndHandler, wndControl)
+	log:debug("Send Money checked")
+	MailAutoText.hooks[M.luaComposeMail]["OnMoneySendCheck"](M.luaComposeMail, wndHandler, wndControl)
+	MailAutoText:UpdateMessage() -- Trigger message subject/body update
+end
+
+function MailAutoText:OnMoneySendUncheck(wndHandler, wndControl)
+	log:debug("Send Money unchecked")
+	MailAutoText.hooks[M.luaComposeMail]["OnMoneySendUncheck"](M.luaComposeMail, wndHandler, wndControl)
+	MailAutoText:UpdateMessage() -- Trigger message subject/body update
+end
+
+function MailAutoText:OnClosed(wndHandler)
+	log:debug("Compose Mail window closed")
+	MailAutoText.hooks[M.luaComposeMail]["OnClosed"](M.luaComposeMail, wndHandler)
+	
+	-- When mail is closed, clear the previously generated message body
+	MailAutoText.strItemList = ""
+end
+
+
 -- Called when an attachment is added. Triggered by the "MailAddAttachment" server event.
 -- Parameter attachmentId is not an item-id, but an id that is only usable in
 -- the context of this particular message.
 function MailAutoText:ItemAttachmentAdded(nValue)
+	log:debug("'MailAddAttachment' event fired for ID %d", nValue)
+
 	-- Event fired at times we're not actually composing mail, 
 	-- such as right-clicking to equip items
-	if Apollo.GetAddon("Mail").luaComposeMail == nil then
+	if M.luaComposeMail == nil then
+		log:debug("'MailAddAttachment' ignored, not currently composing mail")
 		return
 	end
 
-    -- Generate new item-string and trigger message update
-    MailAutoText.strItemList = MailAutoText:GenerateItemListString(nValue, nil)
-    MailAutoText:UpdateMessage()
+	-- Generate new item-string and trigger message update
+	MailAutoText.strItemList = MailAutoText:GenerateItemListString(nValue, nil)
+	MailAutoText:UpdateMessage()
 end
 
 -- Called when an attachment is removed. Triggered by the "Mail" Addons GUI interactions.
 -- Extracted parameter "iAttach" is the index of the attachment being removed.
 function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
-	-- Directly invoke the "intended target" (hooked) function before handling it ourselves
-	-- This should've been handled as a PostHook by GeminiHook, but for some reason it breaks on this particular hook. 
-	-- So, here it is done via a RawHook and an initial call to the hooked function
-	MailAutoText.hooks[Apollo.GetAddon("Mail").luaComposeMail]["OnClickAttachment"](Apollo.GetAddon("Mail").luaComposeMail, wndHandler, wndControl)
+	log:debug("Attachment clicked (removed)")
+
+	MailAutoText.hooks[M.luaComposeMail]["OnClickAttachment"](M.luaComposeMail, wndHandler, wndControl)
 		
-    -- Function is called twice by Mail addon - these filters (copied from Mail.lua) filters out one of them
-    if wndHandler ~= wndControl then
-        return
-    end
-    local iAttach = wndHandler:GetData()
-    if iAttach == nil then
-        return
-    end
+	-- Function is called twice by Mail addon - these filters (copied from Mail.lua) filters out one of them
+	if wndHandler ~= wndControl then
+		return
+	end
+	local iAttach = wndHandler:GetData()
+	if iAttach == nil then
+		return
+	end
+	
+	log:debug("Attachment index identified: %d", iAttach)
 		
-    -- Calculate new item-string and trigger body-update
-    MailAutoText.strItemList = MailAutoText:GenerateItemListString(nil, iAttach)
-    MailAutoText:UpdateMessage()
+	-- Calculate new item-string and trigger body-update
+	MailAutoText.strItemList = MailAutoText:GenerateItemListString(nil, iAttach)
+	MailAutoText:UpdateMessage()
 end
 
 function MailAutoText:GoldPrettyPrint(monAmount)
-    if monAmount == 0 then
-        return ""
-    end
+	if monAmount == 0 then
+		return ""
+	end
 
-    local strAmount = tostring(monAmount)
-    local copper = string.sub(strAmount, -2, -1)
-    local silver = string.sub(strAmount, -4, -3)
-    local gold = string.sub(strAmount, -6, -5)
-    local plat = string.sub(strAmount, -8, -7)
+	local strAmount = tostring(monAmount)
+	local copper = string.sub(strAmount, -2, -1)
+	local silver = string.sub(strAmount, -4, -3)
+	local gold = string.sub(strAmount, -6, -5)
+	local plat = string.sub(strAmount, -8, -7)
 
-    local strResult = ""
-    strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(plat, "Platinum"))
-    strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(gold, "Gold"))
-    strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(silver, "Silver"))
-    strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(copper, "Copper"))
+	local strResult = ""
+	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(plat, "Platinum"))
+	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(gold, "Gold"))
+	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(silver, "Silver"))
+	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(copper, "Copper"))
 
-    return(strResult)
+	return(strResult)
 end
 
 function MailAutoText:IsSendingCash()
-	local mail = Apollo.GetAddon("Mail")
+	local mail = M
 	if mail.luaComposeMail ~= nil then
 		return mail.luaComposeMail.wndCashSendBtn:IsChecked()		
 	else
@@ -122,7 +182,7 @@ function MailAutoText:IsSendingCash()
 end
 
 function MailAutoText:IsRequestingCash()
-	local mail = Apollo.GetAddon("Mail")
+	local mail = M
 	if mail.luaComposeMail ~= nil then
 		return mail.luaComposeMail.wndCashCODBtn:IsChecked()
 	else
@@ -131,97 +191,98 @@ function MailAutoText:IsRequestingCash()
 end
 
 function MailAutoText:AppendDenomination(strFull, strAmount)
-    local strResult = strFull
+	local strResult = strFull
 
-    -- If we're adding text to an existing string, insert a space
-    if string.len(strResult) > 0 and string.len(strAmount) > 0 then
-        strResult = strResult .. " "
-    end
+	-- If we're adding text to an existing string, insert a space
+	if string.len(strResult) > 0 and string.len(strAmount) > 0 then
+		strResult = strResult .. " "
+	end
 
-    -- Added current denom-string (if any) to the existing string
-    if string.len(strAmount) > 0 then
-        strResult = strResult .. strAmount
-    end
+	-- Added current denom-string (if any) to the existing string
+	if string.len(strAmount) > 0 then
+		strResult = strResult .. strAmount
+	end
 
-    return strResult
+	return strResult
 end
 
 function MailAutoText:PrettyPrintDenomination(strAmount, strDenomination)
-    local strResult = ""
-    if strAmount ~= nil and strAmount ~= "" and strAmount ~= "00" then
-        if string.sub(strAmount, 1, 1) == "0" then
-            -- Don't print "04 Silver", just "4 Silver"
-            strResult = string.sub(strAmount, 2, 2) .. " " .. strDenomination
-        else
-            strResult = strAmount .. " " .. strDenomination
-        end
-    end
-    return strResult
+	local strResult = ""
+	if strAmount ~= nil and strAmount ~= "" and strAmount ~= "00" then
+		if string.sub(strAmount, 1, 1) == "0" then
+			-- Don't print "04 Silver", just "4 Silver"
+			strResult = string.sub(strAmount, 2, 2) .. " " .. strDenomination
+		else
+			strResult = strAmount .. " " .. strDenomination
+		end
+	end
+	return strResult
 end
 
 -- Called whenever an attachment is added or removed. Produces a string describing all attachments.
 -- Note the difference between attachmentID and attachmentINDEX for the two parameters!
 function MailAutoText:GenerateItemListString(addedAttachmentId, removedAttachmentIndex)
 
-    -- Deep-copy "arAttachments" (except removed index) into local array
-    local allAttachmentIds = {}
-    for k,v in ipairs(Apollo.GetAddon("Mail").luaComposeMail.arAttachments) do
+	-- Deep-copy "arAttachments" (except removed index) into local array
+	local allAttachmentIds = {}
+	for k,v in ipairs(M.luaComposeMail.arAttachments) do
 		if removedAttachmentIndex == nil or removedAttachmentIndex ~= k then
 			allAttachmentIds[#allAttachmentIds+1] = v
 		end
-    end
+	end
 
-    -- Check if the newly-attached item (if any) already exist in array, since we do not control the event call-order
-    local bExists = false
-    for k,v in ipairs(allAttachmentIds) do
-        if v == addedAttachmentId then
-            bExists = true
-        end
-    end
+	-- Check if the newly-attached item (if any) already exist in array, since we do not control the event call-order
+	local bExists = false
+	for k,v in ipairs(allAttachmentIds) do
+		if v == addedAttachmentId then
+			bExists = true
+		end
+	end
 
-    -- Add new item to end of array if not present
-    if bExists == false then
-        allAttachmentIds[#allAttachmentIds+1] = addedAttachmentId
-    end
+	-- Add new item to end of array if not present
+	if bExists == false then
+		allAttachmentIds[#allAttachmentIds+1] = addedAttachmentId
+	end
 
-    -- Concatenate list of items
-    local strItems = ""
-    for _,attachmentId in ipairs(allAttachmentIds) do
+	-- Concatenate list of items
+	local strItems = ""
+	for _,attachmentId in ipairs(allAttachmentIds) do
 		local itemData = MailSystemLib.GetItemFromInventoryId(attachmentId)
-        local itemId = itemData:GetItemId()
+		local itemId = itemData:GetItemId()
 		local stackCount = itemData:GetStackCount()
-        local itemDetails = Item.GetDetailedInfo(itemId)
-        
+		local itemDetails = Item.GetDetailedInfo(itemId)
+		
 		strItems = strItems .. itemDetails.tPrimary.strName		
 		if stackCount > 1 then
 			strItems = strItems .. " (x" .. stackCount .. ")"
 		end
 		strItems = strItems .. "\n"
-    end
+	end
 
-    return strItems
+	return strItems
 end
 
 -- Generates the subject-line based on current subject, and mail contents.
 function MailAutoText:GenerateSubjectString()
-    -- Get current subject string from GUI
-    local currentSubject = Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:GetText()
+	-- Get current subject string from GUI
+	local currentSubject = M.luaComposeMail.wndSubjectEntry:GetText()
 	
 	-- Check if current subject is an auto-generated one (or empty). If so, replace with updated auto-generated one
-	local bUpdate = false
+	local bGenerated = false
 	if currentSubject == "" then 
-		bUpdate = true
+		bGenerated = true
 	else
 		for k,v in pairs(L) do
 			if v == currentSubject then 
-				bUpdate = true
+				log:debug("Generated subject identified")
+				bGenerated = true
 				break
 			end
 		end
 	end
 	
 	-- Not an auto-generated subject? just return current subject then
-	if bUpdate == false then
+	if bGenerated == false then
 		return currentSubject
 	end
 	
@@ -250,53 +311,56 @@ function MailAutoText:GenerateSubjectString()
 end
 
 function MailAutoText:UpdateMessage()
-	local strCredits = MailAutoText:GoldPrettyPrint(Apollo.GetAddon("Mail").luaComposeMail.wndCashWindow:GetAmount())
-    local bCreditsText = (MailAutoText:IsSendingCash() or MailAutoText:IsRequestingCash()) and strCredits ~= ""
-    local bItemListText = MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= ""
+	log:debug("Updating message")
 
-    -- Update subject
-	Apollo.GetAddon("Mail").luaComposeMail.wndSubjectEntry:SetText(MailAutoText:GenerateSubjectString())
+	local strCredits = MailAutoText:GoldPrettyPrint(M.luaComposeMail.wndCashWindow:GetAmount())
+	local bCreditsText = (MailAutoText:IsSendingCash() or MailAutoText:IsRequestingCash()) and strCredits ~= ""
+	local bItemListText = MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= ""
 
-    -- Update body
-    local currentBody = Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:GetText()
-
-    -- Cut off the bottom half (our auto-text) of the msg body
-    local newBody = ""
-    if currentBody ~= nil then
-        local index = string.find(currentBody, Apollo.GetString("CRB_Attachments_1"))
-
-        if index == nil then
-            newBody = currentBody
-        else
-            local strFirst = string.sub(currentBody, 1, (index-1))
-            newBody = strFirst
-        end
-    end
-
-    -- Append "Attachments" header if any attachments are identified
-    if bCreditsText == true or bItemListText == true then
-        if newBody == "" then
-            newBody = Apollo.GetString("CRB_Attachments_1") .. "\n"
-        else
-            newBody = newBody .. Apollo.GetString("CRB_Attachments_1") .. "\n"
-        end
-    end
-
-    -- Append credits text if sending credits
-    if bCreditsText == true then		
-        if MailAutoText:IsRequestingCash() == true then
-            newBody = newBody .. Apollo.GetString("CRB_Request_COD") .. ": " .. strCredits .. "\n"
-        end
-        if MailAutoText:IsSendingCash() == true then
-            newBody = newBody .. Apollo.GetString("CRB_Send_Money") .. ": " .. strCredits .. "\n"
-        end
-    end
-
-	-- Append itemlist if sending items
-    if bItemListText == true then
-        newBody = newBody .. MailAutoText.strItemList
-    end
+	-- Update subject
+	M.luaComposeMail.wndSubjectEntry:SetText(MailAutoText:GenerateSubjectString())
 
 	-- Update body
-	Apollo.GetAddon("Mail").luaComposeMail.wndMessageEntryText:SetText(newBody)
+	local currentBody = M.luaComposeMail.wndMessageEntryText:GetText()
+
+	-- Cut off the bottom half (our auto-text) of the msg body
+	local strAttachments = Apollo.GetString("CRB_Attachments") .. ":\n"
+	local newBody = ""
+	if currentBody ~= nil then
+		local index = string.find(currentBody, strAttachments)
+
+		if index == nil then
+			newBody = currentBody
+		else
+			local strFirst = string.sub(currentBody, 1, (index-1))
+			newBody = strFirst
+		end
+	end
+
+	-- Append "Attachments" header if any attachments are identified
+	if bCreditsText == true or bItemListText == true then
+		if newBody == "" then
+			newBody = strAttachments
+		else
+			newBody = newBody .. strAttachments
+		end
+	end
+
+	-- Append credits text if sending credits
+	if bCreditsText == true then		
+		if MailAutoText:IsRequestingCash() == true then
+			newBody = newBody .. Apollo.GetString("CRB_Request_COD") .. ": " .. strCredits .. "\n"
+		end
+		if MailAutoText:IsSendingCash() == true then
+			newBody = newBody .. Apollo.GetString("CRB_Send_Money") .. ": " .. strCredits .. "\n"
+		end
+	end
+
+	-- Append itemlist if sending items
+	if bItemListText == true then
+		newBody = newBody .. MailAutoText.strItemList
+	end
+
+	-- Update body
+	M.luaComposeMail.wndMessageEntryText:SetText(newBody)
 end

@@ -5,6 +5,7 @@
 	<Script Name="Locale/frFR.lua"/>
 	<Script Name="Libs/GeminiAddon/GeminiAddon.lua"/>
 	<Script Name="Libs/GeminiHook/GeminiHook-1.0.lua"/>
+	<Script Name="Libs/GeminiLogging/GeminiLogging.lua"/>
 	<Script Name="Libs/GeminiLocale/GeminiLocale.lua"/>
 	<Script Name="MailAutoText.lua"/>
 </Addon>
