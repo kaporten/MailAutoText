@@ -4,10 +4,11 @@ require "GameLib"
 require "Apollo"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {1, 4, 0}
+MailAutoText.ADDON_VERSION = {1, 4, 1}
 
-local M = Apollo.GetAddon("Mail")
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
+
+-- GeminiLoging, initialized during OnEnable
 local log
 
 function MailAutoText:OnEnable()
@@ -19,9 +20,6 @@ function MailAutoText:OnEnable()
 	})
 	MailAutoText.log = log -- store ref for GeminiConsole-access to loglevel
 	log:info("Initializing addon 'MailAutoText'")
-
-	-- Server-side event fired when an attachment has been added to an open mail
-	Apollo.RegisterEventHandler("MailAddAttachment", "ItemAttachmentAdded", self) -- Attachment added
 	
 	--[[
 		Hooking into the mail composition GUI itself can only be done 
@@ -29,7 +27,19 @@ function MailAutoText:OnEnable()
 		So posthook on the "compose mail" button-function, and set up 
 		futher hooks once there.
 	]]
+	
+	-- Get permanent ref to addon mail - stop addon if Mail cannot be found.
+	M = Apollo.GetAddon("Mail")	
+	if M == nil then
+		log:fatal("Could not load addon 'Mail'")
+		return
+	end
+	
+		-- Server-side event fired when an attachment has been added to an open mail
+	Apollo.RegisterEventHandler("MailAddAttachment", "ItemAttachmentAdded", self) -- Attachment added
 	MailAutoText:RawHook(M, "ComposeMail", MailAutoText.HookMailModificationFunctions)
+	
+	log:debug("Addon loaded, ComposeMail hook in place")
 end
 
 -- Sets up hooks for client-side mail content modifications
@@ -132,8 +142,6 @@ end
 -- Called when an attachment is removed. Triggered by the "Mail" Addons GUI interactions.
 -- Extracted parameter "iAttach" is the index of the attachment being removed.
 function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
-	log:debug("Attachment clicked (removed)")
-
 	MailAutoText.hooks[M.luaComposeMail]["OnClickAttachment"](M.luaComposeMail, wndHandler, wndControl)
 		
 	-- Function is called twice by Mail addon - these filters (copied from Mail.lua) filters out one of them
@@ -145,10 +153,10 @@ function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
 		return
 	end
 	
-	log:debug("Attachment index identified: %d", iAttach)
+	log:debug("Attachment index removed: %d", iAttach)
 		
 	-- Calculate new item-string and trigger body-update
-	MailAutoText.strItemList = MailAutoText:GenerateItemListString(nil, iAttach)
+	MailAutoText.strItemList = MailAutoText:GenerateItemListString()
 	MailAutoText:UpdateMessage()
 end
 
@@ -173,21 +181,23 @@ function MailAutoText:GoldPrettyPrint(monAmount)
 end
 
 function MailAutoText:IsSendingCash()
-	local mail = M
-	if mail.luaComposeMail ~= nil then
-		return mail.luaComposeMail.wndCashSendBtn:IsChecked()		
+	if M.luaComposeMail ~= nil then
+		return M.luaComposeMail.wndCashSendBtn:IsChecked()
 	else
 		return false
 	end	
 end
 
 function MailAutoText:IsRequestingCash()
-	local mail = M
-	if mail.luaComposeMail ~= nil then
-		return mail.luaComposeMail.wndCashCODBtn:IsChecked()
+	if M.luaComposeMail ~= nil then
+		return M.luaComposeMail.wndCashCODBtn:IsChecked() and MailAutoText:HasAttachments()
 	else
 		return false
 	end	
+end
+
+function MailAutoText:HasAttachments()
+	return M.luaComposeMail ~= nil and M.luaComposeMail.arAttachments ~= nil and #M.luaComposeMail.arAttachments > 0
 end
 
 function MailAutoText:AppendDenomination(strFull, strAmount)
@@ -220,15 +230,12 @@ function MailAutoText:PrettyPrintDenomination(strAmount, strDenomination)
 end
 
 -- Called whenever an attachment is added or removed. Produces a string describing all attachments.
--- Note the difference between attachmentID and attachmentINDEX for the two parameters!
-function MailAutoText:GenerateItemListString(addedAttachmentId, removedAttachmentIndex)
+function MailAutoText:GenerateItemListString(addedAttachmentId)
 
 	-- Deep-copy "arAttachments" (except removed index) into local array
 	local allAttachmentIds = {}
 	for k,v in ipairs(M.luaComposeMail.arAttachments) do
-		if removedAttachmentIndex == nil or removedAttachmentIndex ~= k then
-			allAttachmentIds[#allAttachmentIds+1] = v
-		end
+		allAttachmentIds[#allAttachmentIds+1] = v
 	end
 
 	-- Check if the newly-attached item (if any) already exist in array, since we do not control the event call-order
@@ -306,8 +313,8 @@ function MailAutoText:GenerateSubjectString()
 		return L["Subject_Cash"]
 	end
 	
-	-- Not sending anything, no special subject autocompletion required.
-	return currentSubject	
+	-- Not sending anything, clear generated subject
+	return ""
 end
 
 function MailAutoText:UpdateMessage()
