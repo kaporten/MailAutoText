@@ -11,6 +11,7 @@ local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoTex
 -- GeminiLoging, initialized during OnEnable
 local log
 
+-- Reference to Mail addon, initialized during OnEnable
 local M
 
 function MailAutoText:OnEnable()
