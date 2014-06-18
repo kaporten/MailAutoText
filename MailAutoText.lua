@@ -4,12 +4,14 @@ require "GameLib"
 require "Apollo"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {1, 4, 1}
+MailAutoText.ADDON_VERSION = {1, 4, 3}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
 -- GeminiLoging, initialized during OnEnable
 local log
+
+local M
 
 function MailAutoText:OnEnable()
 	local GeminiLogging = Apollo.GetPackage("Gemini:Logging-1.2").tPackage
@@ -84,28 +86,40 @@ end
 
 function MailAutoText:OnCashAmountChanged()
 	log:debug("Cash amount changed")
-	MailAutoText.hooks[M.luaComposeMail]["OnCashAmountChanged"](M.luaComposeMail)	
 	MailAutoText:UpdateMessage() -- Trigger message subject/body update
+	MailAutoText.hooks[M.luaComposeMail]["OnCashAmountChanged"](M.luaComposeMail)	
 end
 
+-- "Check" intercepts should be pre-hook so we add text before Mail knows about it
 function MailAutoText:OnMoneyCODCheck(wndHandler, wndControl)
 	log:debug("Request Money checked")
-	MailAutoText.hooks[M.luaComposeMail]["OnMoneyCODCheck"](M.luaComposeMail, wndHandler, wndControl)
+	
+	-- When checking CashCOD, preemptively uncheck the CashSend button, so that our own logic correctly calcs message state
+	M.luaComposeMail.wndCashSendBtn:SetCheck(false)
+
 	MailAutoText:UpdateMessage() -- Trigger message subject/body update
+	MailAutoText.hooks[M.luaComposeMail]["OnMoneyCODCheck"](M.luaComposeMail, wndHandler, wndControl)
 end
 
+-- "Uncheck" intercepts should be post-hook so we update text after Mail has taken care of the cleanup
 function MailAutoText:OnMoneyCODUncheck(wndHandler, wndControl)
 	log:debug("Request Money unchecked")
 	MailAutoText.hooks[M.luaComposeMail]["OnMoneyCODUncheck"](M.luaComposeMail, wndHandler, wndControl)
 	MailAutoText:UpdateMessage() -- Trigger message subject/body update
 end
 
+-- "Check" intercepts should be pre-hook so we add text before Mail knows about it
 function MailAutoText:OnMoneySendCheck(wndHandler, wndControl)
-	log:debug("Send Money checked")
-	MailAutoText.hooks[M.luaComposeMail]["OnMoneySendCheck"](M.luaComposeMail, wndHandler, wndControl)
+	log:debug("Send Money checked")	
+	
+	-- When checking CashSend, preemptively uncheck the CashCOD button, so that our own logic correctly calcs message state
+	M.luaComposeMail.wndCashCODBtn:SetCheck(false)
+	
 	MailAutoText:UpdateMessage() -- Trigger message subject/body update
+	MailAutoText.hooks[M.luaComposeMail]["OnMoneySendCheck"](M.luaComposeMail, wndHandler, wndControl)
 end
 
+-- "Uncheck" intercepts should be post-hook so we update text after Mail has taken care of the cleanup
 function MailAutoText:OnMoneySendUncheck(wndHandler, wndControl)
 	log:debug("Send Money unchecked")
 	MailAutoText.hooks[M.luaComposeMail]["OnMoneySendUncheck"](M.luaComposeMail, wndHandler, wndControl)
