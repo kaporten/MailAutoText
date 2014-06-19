@@ -37,9 +37,7 @@ function MailAutoText:OnEnable()
 		log:fatal("Could not load addon 'Mail'")
 		return
 	end
-	
-	-- Server-side event fired when an attachment has been added to an open mail
-	--Apollo.RegisterEventHandler("MailAddAttachment", "ItemAttachmentAdded", self) -- Attachment added
+
 	MailAutoText:RawHook(M, "ComposeMail", MailAutoText.HookMailModificationFunctions)
 	
 	log:debug("Addon loaded, ComposeMail hook in place")
