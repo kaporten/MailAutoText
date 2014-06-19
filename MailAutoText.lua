@@ -4,7 +4,7 @@ require "GameLib"
 require "Apollo"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {1, 4, 3}
+MailAutoText.ADDON_VERSION = {1, 5, 0}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
@@ -38,8 +38,8 @@ function MailAutoText:OnEnable()
 		return
 	end
 	
-		-- Server-side event fired when an attachment has been added to an open mail
-	Apollo.RegisterEventHandler("MailAddAttachment", "ItemAttachmentAdded", self) -- Attachment added
+	-- Server-side event fired when an attachment has been added to an open mail
+	--Apollo.RegisterEventHandler("MailAddAttachment", "ItemAttachmentAdded", self) -- Attachment added
 	MailAutoText:RawHook(M, "ComposeMail", MailAutoText.HookMailModificationFunctions)
 	
 	log:debug("Addon loaded, ComposeMail hook in place")
@@ -67,97 +67,97 @@ function MailAutoText:HookMailModificationFunctions()
 		return 
 	end	
 	
+	-- Attachment added/removed
+	MailAutoText:RawHook(luaMail, "AppendAttachment", MailAutoText.ItemAttachmentAdded) 	-- Attachment added
+	MailAutoText:RawHook(luaMail, "OnClickAttachment", MailAutoText.ItemAttachmentRemoved) 	-- Attachment removed
 	
-	MailAutoText:RawHook(luaMail, "OnClickAttachment", MailAutoText.ItemAttachmentRemoved) -- Attachment removed (intentionally non-Post! PostHook breaks stuff here)
-	MailAutoText:RawHook(luaMail, "OnCashAmountChanged", MailAutoText.OnCashAmountChanged) -- Cash amount changed
-	MailAutoText:RawHook(luaMail, "OnMoneyCODCheck", MailAutoText.OnMoneyCODCheck) -- "Request" checked
-	MailAutoText:RawHook(luaMail, "OnMoneyCODUncheck", MailAutoText.OnMoneyCODUncheck) -- "Request" unchecked
-	MailAutoText:RawHook(luaMail, "OnMoneySendCheck", MailAutoText.OnMoneySendCheck) -- "Send" checked
-	MailAutoText:RawHook(luaMail, "OnMoneySendUncheck", MailAutoText.OnMoneySendUncheck) -- "Send unchecked	
-	MailAutoText:RawHook(luaMail, "OnClosed", MailAutoText.OnClosed) -- Mail is closed for whatever reason (cancelled/sent)
+	-- Cash state changes
+	MailAutoText:RawHook(luaMail, "OnCashAmountChanged", MailAutoText.OnCashAmountChanged)	-- Cash amount changed
+	MailAutoText:RawHook(luaMail, "OnMoneyCODCheck", MailAutoText.OnMoneyCODCheck) 			-- "Request" checked
+	MailAutoText:RawHook(luaMail, "OnMoneyCODUncheck", MailAutoText.OnMoneyCODUncheck) 		-- "Request" unchecked
+	MailAutoText:RawHook(luaMail, "OnMoneySendCheck", MailAutoText.OnMoneySendCheck) 		-- "Send" checked
+	MailAutoText:RawHook(luaMail, "OnMoneySendUncheck", MailAutoText.OnMoneySendUncheck) 	-- "Send unchecked	
+	
+	-- Mail closed
+	MailAutoText:RawHook(luaMail, "OnClosed", MailAutoText.OnClosed) 						-- Mail is closed for whatever reason (cancelled/sent)
 	
 	log:debug("Compose Mail editing functions hooked")
 end
 
 --[[ 
-	Hook functions.
-	Allows the addon to react to changes in the mail GUI, such as 
-	attachments added/removed or credits-area changes.
+	Cash state-change hook functions.
 ]]
 
 function MailAutoText:OnCashAmountChanged()
-	log:debug("Cash amount changed")
-	MailAutoText:UpdateMessage() -- Trigger message subject/body update
-	MailAutoText.hooks[M.luaComposeMail]["OnCashAmountChanged"](M.luaComposeMail)	
+	MailAutoText:CashStateChanged("OnCashAmountChanged")
 end
 
--- "Check" intercepts should be pre-hook so we add text before Mail knows about it
 function MailAutoText:OnMoneyCODCheck(wndHandler, wndControl)
-	log:debug("Request Money checked")
-	
-	-- When checking CashCOD, preemptively uncheck the CashSend button, so that our own logic correctly calcs message state
-	M.luaComposeMail.wndCashSendBtn:SetCheck(false)
-
-	MailAutoText:UpdateMessage() -- Trigger message subject/body update
-	MailAutoText.hooks[M.luaComposeMail]["OnMoneyCODCheck"](M.luaComposeMail, wndHandler, wndControl)
+	MailAutoText:CashStateChanged("OnMoneyCODCheck", wndHandler, wndControl)
 end
 
--- "Uncheck" intercepts should be post-hook so we update text after Mail has taken care of the cleanup
 function MailAutoText:OnMoneyCODUncheck(wndHandler, wndControl)
-	log:debug("Request Money unchecked")
-	MailAutoText.hooks[M.luaComposeMail]["OnMoneyCODUncheck"](M.luaComposeMail, wndHandler, wndControl)
-	MailAutoText:UpdateMessage() -- Trigger message subject/body update
+	MailAutoText:CashStateChanged("OnMoneyCODUncheck", wndHandler, wndControl)
 end
 
--- "Check" intercepts should be pre-hook so we add text before Mail knows about it
 function MailAutoText:OnMoneySendCheck(wndHandler, wndControl)
-	log:debug("Send Money checked")	
-	
-	-- When checking CashSend, preemptively uncheck the CashCOD button, so that our own logic correctly calcs message state
-	M.luaComposeMail.wndCashCODBtn:SetCheck(false)
-	
-	MailAutoText:UpdateMessage() -- Trigger message subject/body update
-	MailAutoText.hooks[M.luaComposeMail]["OnMoneySendCheck"](M.luaComposeMail, wndHandler, wndControl)
+	MailAutoText:CashStateChanged("OnMoneySendCheck", wndHandler, wndControl)
 end
 
--- "Uncheck" intercepts should be post-hook so we update text after Mail has taken care of the cleanup
 function MailAutoText:OnMoneySendUncheck(wndHandler, wndControl)
-	log:debug("Send Money unchecked")
-	MailAutoText.hooks[M.luaComposeMail]["OnMoneySendUncheck"](M.luaComposeMail, wndHandler, wndControl)
-	MailAutoText:UpdateMessage() -- Trigger message subject/body update
+	MailAutoText:CashStateChanged("OnMoneySendUncheck", wndHandler, wndControl)
+end
+
+function MailAutoText:CashStateChanged(functionName, wndHandler, wndControl)
+	log:debug("Cash button stage change: %s", functionName)
+	
+	-- Pass call to original function
+	local ret = MailAutoText.hooks[M.luaComposeMail][functionName](M.luaComposeMail, wndHandler, wndControl)
+	
+	-- Update the auto-generated message subject and body texts
+	MailAutoText:UpdateMessage() 
+	
+	-- Force an update of the mail composition controls. 
+	-- This ensures controls such as Send button is correctly activated if we add auto-text.
+	M.luaComposeMail:UpdateControls()
+	return ret	
 end
 
 function MailAutoText:OnClosed(wndHandler)
 	log:debug("Compose Mail window closed")
-	MailAutoText.hooks[M.luaComposeMail]["OnClosed"](M.luaComposeMail, wndHandler)
+	
+	-- Pass call on to original function
+	local ret = MailAutoText.hooks[M.luaComposeMail]["OnClosed"](M.luaComposeMail, wndHandler)
 	
 	-- When mail is closed, clear the previously generated message body
-	MailAutoText.strItemList = ""
+	MailAutoText.strItemList = ""		
+	return ret
 end
 
-
--- Called when an attachment is added. Triggered by the "MailAddAttachment" server event.
--- Parameter attachmentId is not an item-id, but an id that is only usable in
--- the context of this particular message.
 function MailAutoText:ItemAttachmentAdded(nValue)
-	log:debug("'MailAddAttachment' event fired for ID %d", nValue)
-
-	-- Event fired at times we're not actually composing mail, 
-	-- such as right-clicking to equip items
-	if M.luaComposeMail == nil then
-		log:debug("'MailAddAttachment' ignored, not currently composing mail")
-		return
-	end
-
+	log:debug("Attachment added: %d", nValue)
+	
+	-- Pass call on to original function so Mail state is fully updated
+	local ret = MailAutoText.hooks[M.luaComposeMail]["AppendAttachment"](M.luaComposeMail, nValue)
+	
 	-- Generate new item-string and trigger message update
 	MailAutoText.strItemList = MailAutoText:GenerateItemListString(nValue, nil)
 	MailAutoText:UpdateMessage()
+	
+	-- Trigger another controls-update on the Mail GUI (to enable Send if we just added text)
+	M.luaComposeMail:UpdateControls()
+	
+	-- Return result from original function to original caller
+	return ret
 end
 
 -- Called when an attachment is removed. Triggered by the "Mail" Addons GUI interactions.
 -- Extracted parameter "iAttach" is the index of the attachment being removed.
 function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
-	MailAutoText.hooks[M.luaComposeMail]["OnClickAttachment"](M.luaComposeMail, wndHandler, wndControl)
+	log:debug("Attachment removed")
+	
+	-- Pass call on to original function so Mail state is fully updated
+	local ret = MailAutoText.hooks[M.luaComposeMail]["OnClickAttachment"](M.luaComposeMail, wndHandler, wndControl)
 		
 	-- Function is called twice by Mail addon - these filters (copied from Mail.lua) filters out one of them
 	if wndHandler ~= wndControl then
@@ -168,11 +168,17 @@ function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
 		return
 	end
 	
-	log:debug("Attachment index removed: %d", iAttach)
+	log:debug("Attachment index identified: %d", iAttach)
 		
 	-- Calculate new item-string and trigger body-update
 	MailAutoText.strItemList = MailAutoText:GenerateItemListString()
 	MailAutoText:UpdateMessage()
+	
+	-- Trigger another controls-update on the Mail GUI (to enable Send if we just added text)
+	M.luaComposeMail:UpdateControls()
+	
+	-- Return result from original function to original caller
+	return ret
 end
 
 function MailAutoText:GoldPrettyPrint(monAmount)
@@ -197,7 +203,7 @@ end
 
 function MailAutoText:IsSendingCash()
 	if M.luaComposeMail ~= nil then
-		return M.luaComposeMail.wndCashSendBtn:IsChecked()
+		return M.luaComposeMail.wndCashSendBtn:IsChecked() and M.luaComposeMail.wndCashWindow:GetAmount() > 0
 	else
 		return false
 	end	
@@ -205,7 +211,7 @@ end
 
 function MailAutoText:IsRequestingCash()
 	if M.luaComposeMail ~= nil then
-		return M.luaComposeMail.wndCashCODBtn:IsChecked() and MailAutoText:HasAttachments()
+		return M.luaComposeMail.wndCashCODBtn:IsChecked() and MailAutoText:HasAttachments() and M.luaComposeMail.wndCashWindow:GetAmount() > 0
 	else
 		return false
 	end	
