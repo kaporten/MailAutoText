@@ -2,6 +2,7 @@
 require "Window"
 require "GameLib"
 require "Apollo"
+require "FriendshipLib"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
 MailAutoText.ADDON_VERSION = {2, 0, 0}
@@ -38,6 +39,9 @@ function MailAutoText:OnEnable()
 	for _,guild in ipairs(GuildLib.GetGuilds()) do
 		guild:RequestMembers()
 	end
+	
+	-- Add friends to address book as well
+	self:AddFriends(self.addressBook.friends)
 	
 	-- Used during name autocompletion to detect when you're deleting stuff from the To-field.
 	self.strPreviouslyEntered = ""
@@ -564,7 +568,7 @@ function MailAutoText:OnGuildRoster(guild, roster)
 	local book = {}
 		
 	if guild:GetType() == GuildLib.GuildType_Guild then
-		log:info("Updating guild address book for guild '%s'", guild:GetName())
+		log:info("Updating address book for guild '%s'", guild:GetName())
 		self.addressBook.guild = book		
 	end
 	
@@ -578,4 +582,15 @@ function MailAutoText:OnGuildRoster(guild, roster)
 	end
 end
 
-
+function MailAutoText:AddFriends(book)
+	log:info("Adding friends to address book")
+	
+	local friends = FriendshipLib:GetList()
+	MailAutoText.friends = friends
+	for _,friend in ipairs(friends) do
+		-- Same-realm friends only... can't send mail to other realms can we?
+		if friend.strRealmName == GameLib.GetRealmName() then
+			MailAutoText:AddName(book, friend.strCharacterName)
+		end
+	end
+end
