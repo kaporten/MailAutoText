@@ -4,7 +4,7 @@ require "GameLib"
 require "Apollo"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {1, 5, 0}
+MailAutoText.ADDON_VERSION = {2, 0, 0}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
@@ -23,6 +23,11 @@ function MailAutoText:OnEnable()
 	})
 	MailAutoText.log = log -- store ref for GeminiConsole-access to loglevel
 	log:info("Initializing addon 'MailAutoText'")
+
+	-- Prepare address book
+	self.names = {"Pilfinger", "Racki", "Zica",}	
+	self.strPreviousEnter = ""
+	self.strPreviousMatch = ""
 	
 	--[[
 		Hooking into the mail composition GUI itself can only be done 
@@ -74,7 +79,10 @@ function MailAutoText:HookMailModificationFunctions()
 	MailAutoText:RawHook(luaMail, "OnMoneyCODCheck", MailAutoText.OnMoneyCODCheck) 			-- "Request" checked
 	MailAutoText:RawHook(luaMail, "OnMoneyCODUncheck", MailAutoText.OnMoneyCODUncheck) 		-- "Request" unchecked
 	MailAutoText:RawHook(luaMail, "OnMoneySendCheck", MailAutoText.OnMoneySendCheck) 		-- "Send" checked
-	MailAutoText:RawHook(luaMail, "OnMoneySendUncheck", MailAutoText.OnMoneySendUncheck) 	-- "Send unchecked	
+	MailAutoText:RawHook(luaMail, "OnMoneySendUncheck", MailAutoText.OnMoneySendUncheck) 	-- "Send" unchecked	
+
+	-- Recipient
+	MailAutoText:RawHook(luaMail, "OnInfoChanged", MailAutoText.OnRecipientChanged)			-- Recipient field changed
 	
 	-- Mail closed
 	MailAutoText:RawHook(luaMail, "OnClosed", MailAutoText.OnClosed) 						-- Mail is closed for whatever reason (cancelled/sent)
@@ -128,7 +136,12 @@ function MailAutoText:OnClosed(wndHandler)
 	local ret = MailAutoText.hooks[M.luaComposeMail]["OnClosed"](M.luaComposeMail, wndHandler)
 	
 	-- When mail is closed, clear the previously generated message body
-	MailAutoText.strItemList = ""		
+	MailAutoText.strItemList = ""
+	
+	-- Also clear the last value fields for recipient field.
+	MailAutoText.strPreviousEnter = ""
+	MailAutoText.strPreviousMatch = ""
+	
 	return ret
 end
 
@@ -389,4 +402,60 @@ function MailAutoText:UpdateMessage()
 
 	-- Update body
 	M.luaComposeMail.wndMessageEntryText:SetText(newBody)
+end
+
+
+function MailAutoText:OnRecipientChanged(wndHandler, wndControl)
+	log:debug("Recipient changed")
+
+	local strEntered = M.luaComposeMail.wndNameEntry:GetText()
+	local strPreviousEnter = MailAutoText.strPreviousEnter
+	local strPreviousMatch = MailAutoText.strPreviousMatch
+	
+	log:debug("strEntered: '%s'", strEntered)
+	log:debug("strPreviousEnter: '%s'", strPreviousEnter)
+	log:debug("strPreviousMatch: '%s'", strPreviousMatch)	
+	MailAutoText.wndHandler = wndHandler
+	MailAutoText.wndControl = wndControl
+	
+	-- TODO: increase "backspace delete selection"
+	
+	-- Do not react if user is deleting chars from recipient field value
+	if strPreviousEnter ~= "" -- Must have a previously entered value
+	   --and string.len(strEntered)>=3 -- Current entered text must be at least 3 chars to ignore autocomplete (since min char name is 3)
+	   and string.len(strEntered)<=string.len(strPreviousEnter) -- Current entered text must shorter than last entered
+	   and string.find(string.lower(strPreviousEnter), string.lower(strEntered)) == 1 then -- Current entered text must be a starts-with match of last entered
+		log:debug("Deleting chars, ignore")		
+		MailAutoText.strPreviousEnter = strEntered
+		MailAutoText.strPreviousMatch = strEntered
+		return MailAutoText.hooks[M.luaComposeMail]["OnInfoChanged"](M.luaComposeMail, wndHandler, wndControl)
+	end
+	
+	local strMatched = MailAutoText:GetNameMatch(strEntered)
+	
+	if strEntered ~= strMatched then
+		log:debug("Updating partial input '%s' to matched input '%s'", strEntered, strMatched)
+		M.luaComposeMail.wndNameEntry:SetText(strMatched)
+		M.luaComposeMail.wndNameEntry:SetSel(string.len(strEntered), string.len(strMatched))
+	end
+	
+	MailAutoText.strPreviousEnter = strEntered
+	MailAutoText.strPreviousMatch = strMatched
+	
+	-- Pass update on to Mail for futher control
+	return MailAutoText.hooks[M.luaComposeMail]["OnInfoChanged"](M.luaComposeMail, wndHandler, wndControl)
+end
+
+function MailAutoText:GetNameMatch(strEntered)
+	-- Very ineffective matching algorithm. Optimize: lots of lower(), no reduction of possible match-sets per char entered etc.
+	local len = string.len(strEntered)
+	for _,strFullName in ipairs(MailAutoText.names) do
+		local strPartialName = string.sub(strFullName, 1, len)
+		if string.lower(strPartialName) == string.lower(strEntered) then
+			log:debug("Input '%s' matches '%s'", strEntered, strFullName)
+			return strFullName
+		end
+		log:debug("Input '%s' does not match '%s'", strEntered, strFullName) 
+	end
+	return strEntered
 end
