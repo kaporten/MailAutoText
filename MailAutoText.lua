@@ -24,11 +24,14 @@ function MailAutoText:OnEnable()
 	MailAutoText.log = log -- store ref for GeminiConsole-access to loglevel
 	log:info("Initializing addon 'MailAutoText'")
 
-	-- Prepare address book	
+	-- Prepare empty address book	
 	self.addressBook = {}
+	self.addressBook.friends = {}
+	self.addressBook.guild = {}
+	self.addressBook.circles = {}
 	
 	-- TODO: Add a list of static test names to the address book
-	for _,n in pairs({"Pilfinger", "Racki", "Zica", "Dalwhinnie"}) do self:AddName(n) end
+	for _,n in pairs({"Pilfinger", "Racki", "Zica", "Dalwhinnie"}) do self:AddName(self.addressBook.friends, n) end
 	
 	-- Used during name autocompletion to detect when you're deleting stuff from the To-field.
 	self.strPreviouslyEntered = ""
@@ -425,11 +428,15 @@ function MailAutoText:OnRecipientChanged(wndHandler, wndControl)
 		return MailAutoText.hooks[M.luaComposeMail]["OnInfoChanged"](M.luaComposeMail, wndHandler, wndControl)
 	end
 	
-	-- Check if current value has an addressBook entry
-	-- If no match is found, strEntered will be returned again
-	local strMatched = MailAutoText:GetNameMatch(strEntered)
-	
-	if strEntered ~= strMatched then
+	-- Check if current value has an addressBook entry in any address book. Priority is Friend > Guild > Circle.
+	local strMatched
+	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.friends, strEntered)
+	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.guild, strEntered)
+	for _,circle in ipairs(MailAutoText.addressBook.circles) do
+		strMatched = strMatched or MailAutoText:GetNameMatch(circle, strEntered)
+	end
+		
+	if strMatched ~= nil then
 		-- Match found, set To-field text to the full name, and select the auto-completed part
 		log:debug("Updating entered input '%s' to matched input '%s'", strEntered, strMatched)
 		M.luaComposeMail.wndNameEntry:SetText(strMatched)
@@ -476,14 +483,14 @@ end
 	the background during addon load and guild/friend list update events.
 ]]
 	
-function MailAutoText:AddName(strName, i, node)
+function MailAutoText:AddName(book, strName, i, node)
 	if i == nil then
 		log:debug(string.format("Adding '%s' to the address book", strName))
 	end
 
 	-- First hit, set index to 1 and current node to addressBook tree root
 	i = i or 1
-	node = node or self.addressBook
+	node = node or book
 	
 	-- Char at index i in the full name, lowered
 	local char = strName:sub(i, i):lower()
@@ -508,21 +515,21 @@ function MailAutoText:AddName(strName, i, node)
 	end
 	
 	-- Tail-call recursion, avoids stack buildup as addressBook is being constructed.
-	MailAutoText:AddName(strName, i+1, childNode)
+	MailAutoText:AddName(book, strName, i+1, childNode)
 end
 
 -- Gets the best name match from the address book dictionary
-function MailAutoText:GetNameMatch(part)
+function MailAutoText:GetNameMatch(book, part)
 	local lower = part:lower()
-	local node = self.addressBook
+	local node = book
 	
 	-- Find the deepest node in the tree, matching the entered text char-by-char
 	for i=1, #lower do
 		local c = lower:sub(i,i)		
 		local childNode = node[c]
 		if childNode == nil then
-			-- Text entered does not match any addressbook name
-			return part
+			-- Text entered does not match any addressbook name, return nil
+			return nil
 		else
 			-- Char matches a node, go deeper
 			node = childNode
