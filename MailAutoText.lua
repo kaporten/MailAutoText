@@ -29,9 +29,15 @@ function MailAutoText:OnEnable()
 	self.addressBook.friends = {}
 	self.addressBook.guild = {}
 	self.addressBook.circles = {}
+
+	-- Register for gulid/circle changes, so address book can be updated
+	Apollo.RegisterEventHandler("GuildRoster", "OnGuildRoster", self)
+	Apollo.RegisterEventHandler("GuildMemberChange", "OnGuildMemberChange", self)
 	
-	-- TODO: Add a list of static test names to the address book
-	for _,n in pairs({"Pilfinger", "Racki", "Zica", "Dalwhinnie"}) do self:AddName(self.addressBook.friends, n) end
+	-- Trigger guild address book population
+	for _,guild in ipairs(GuildLib.GetGuilds()) do
+		guild:RequestMembers()
+	end
 	
 	-- Used during name autocompletion to detect when you're deleting stuff from the To-field.
 	self.strPreviouslyEntered = ""
@@ -546,3 +552,30 @@ function MailAutoText:GetNameMatch(book, part)
 	log:debug("Matched input '%s' to '%s'", part, result)
 	return result
 end
+
+
+function MailAutoText:OnGuildMemberChange(guild)
+	log:debug("Guild or circle changed, requesting roster")
+	guild:RequestMembers()
+end
+
+function MailAutoText:OnGuildRoster(guild, roster)
+	-- Fresh address book, replaces current guild or circle book
+	local book = {}
+		
+	if guild:GetType() == GuildLib.GuildType_Guild then
+		log:info("Updating guild address book for guild '%s'", guild:GetName())
+		self.addressBook.guild = book		
+	end
+	
+	if guild:GetType() == GuildLib.GuildType_Circle then
+		log:info("Updating address book for circle '%s'", guild:GetName())
+		self.addressBook.circles[guild:GetName()] = book
+	end
+	
+	for _,member in ipairs(roster) do
+		MailAutoText:AddName(book, member.strName)
+	end
+end
+
+
