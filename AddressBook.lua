@@ -40,46 +40,44 @@ names = {"Pilfinger", "Zica", "Racki", "Dalwhinnie", "Sayiem", "PilFinger", "pIL
 
 function GetMatch(part)
 	local lower = part:lower()
-	local page = addressBook
+	local node = addressBook
 	
 	for i=1, #lower do
 		local c = lower:sub(i,i)		
-		local childPage = page[c]
-		if childPage == nil then
+		local childNode = node[c]
+		if childNode == nil then
 			break
 		else
-			page = childPage
+			node = childNode
 		end		
 	end
 	
-	if page == nil then 
+	if node == nil then 
 		return part 
 	else
-		return page.matchedName or part
+		return node.matchedName or part
 	end	
 end
 
-function AddName(strName, i, parentPage)
-	-- First hit, set index to 1 and parentPage to addressBook tree root
+function AddName(strName, i, node)
+	-- First hit, set index to 1 and current node to addressBook tree root
 	i = i or 1
-	parentPage = parentPage or addressBook
+	node = node or addressBook
 	
 	-- Char at index i in the full name, lowered
 	local char = strName:sub(i, i):lower()
 	
-	print(string.format("strName=%s, i=%d, char=%s", strName, i, char))
+	-- Check if a child node exist for this char
+	local childNode = node[char]
 	
-	-- Check if a child tree node ("page") exist for this char
-	local childPage = parentPage[char]
-	
-	if childPage == nil then
+	if childNode == nil then
 		-- No child node found, create one and set matchedName for this node to input name
-		childPage = {matchedName = strName}
-		parentPage[char] = childPage		
+		childNode = {matchedName = strName}
+		node[char] = childNode		
 	else		
 		-- Node already exist. Update matched name if the current name is alphabetically "lower".
-		if strName < childPage.matchedName then
-			childPage.matchedName = strName
+		if strName < childNode.matchedName then
+			childNode.matchedName = strName
 		end
 	end
 	
@@ -89,7 +87,7 @@ function AddName(strName, i, parentPage)
 	end
 	
 	-- Tail-call recursion, avoids stack buildup as addressBook is being constructed.
-	AddName(strName, i+1, childPage)
+	AddName(strName, i+1, childNode)
 end
 
 for _,n in pairs(names) do
