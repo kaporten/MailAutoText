@@ -2,9 +2,10 @@
 require "Window"
 require "GameLib"
 require "Apollo"
+require "FriendshipLib"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {1, 5, 0}
+MailAutoText.ADDON_VERSION = {2, 0, 0}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
@@ -23,6 +24,27 @@ function MailAutoText:OnEnable()
 	})
 	MailAutoText.log = log -- store ref for GeminiConsole-access to loglevel
 	log:info("Initializing addon 'MailAutoText'")
+
+	-- Prepare empty address book	
+	self.addressBook = {}
+	self.addressBook.friends = {}
+	self.addressBook.guild = {}
+	self.addressBook.circles = {}
+
+	-- Register for gulid/circle changes, so address book can be updated
+	Apollo.RegisterEventHandler("GuildRoster", "OnGuildRoster", self)
+	Apollo.RegisterEventHandler("GuildMemberChange", "OnGuildMemberChange", self)
+	
+	-- Trigger guild address book population
+	for _,guild in ipairs(GuildLib.GetGuilds()) do
+		guild:RequestMembers()
+	end
+	
+	-- Add friends to address book as well
+	self:AddFriends(self.addressBook.friends)
+	
+	-- Used during name autocompletion to detect when you're deleting stuff from the To-field.
+	self.strPreviouslyEntered = ""
 	
 	--[[
 		Hooking into the mail composition GUI itself can only be done 
@@ -74,7 +96,10 @@ function MailAutoText:HookMailModificationFunctions()
 	MailAutoText:RawHook(luaMail, "OnMoneyCODCheck", MailAutoText.OnMoneyCODCheck) 			-- "Request" checked
 	MailAutoText:RawHook(luaMail, "OnMoneyCODUncheck", MailAutoText.OnMoneyCODUncheck) 		-- "Request" unchecked
 	MailAutoText:RawHook(luaMail, "OnMoneySendCheck", MailAutoText.OnMoneySendCheck) 		-- "Send" checked
-	MailAutoText:RawHook(luaMail, "OnMoneySendUncheck", MailAutoText.OnMoneySendUncheck) 	-- "Send unchecked	
+	MailAutoText:RawHook(luaMail, "OnMoneySendUncheck", MailAutoText.OnMoneySendUncheck) 	-- "Send" unchecked	
+
+	-- Recipient
+	MailAutoText:RawHook(luaMail, "OnInfoChanged", MailAutoText.OnRecipientChanged)			-- Recipient field changed
 	
 	-- Mail closed
 	MailAutoText:RawHook(luaMail, "OnClosed", MailAutoText.OnClosed) 						-- Mail is closed for whatever reason (cancelled/sent)
@@ -128,7 +153,11 @@ function MailAutoText:OnClosed(wndHandler)
 	local ret = MailAutoText.hooks[M.luaComposeMail]["OnClosed"](M.luaComposeMail, wndHandler)
 	
 	-- When mail is closed, clear the previously generated message body
-	MailAutoText.strItemList = ""		
+	MailAutoText.strItemList = ""
+	
+	-- Also clear the last value fields for recipient field.
+	MailAutoText.strPreviouslyEntered = ""
+	
 	return ret
 end
 
@@ -389,4 +418,179 @@ function MailAutoText:UpdateMessage()
 
 	-- Update body
 	M.luaComposeMail.wndMessageEntryText:SetText(newBody)
+end
+
+-- Called when the text in the "To" recipient field is altered. Handles name auto-completion.
+function MailAutoText:OnRecipientChanged(wndHandler, wndControl)
+	local strEntered = M.luaComposeMail.wndNameEntry:GetText()
+	local strPreviouslyEntered = MailAutoText.strPreviouslyEntered
+	
+	log:debug("Recipient changed. strEntered='%s', strPreviouslyEntered=", strEntered, strPreviouslyEntered)
+		
+	-- Do not react if user is deleting chars from recipient field value
+	if strPreviouslyEntered ~= "" -- Must have a previously entered value
+			and string.len(strEntered)<=string.len(strPreviouslyEntered) -- Current entered text must shorter than last entered
+			and string.find(string.lower(strPreviouslyEntered), string.lower(strEntered)) == 1 then -- Current entered text must be a starts-with match of last entered
+   
+		-- Update previously entered value and pass update along to Mail GUI
+		log:debug("Deleting characters, skipping auto-completion")
+		MailAutoText.strPreviouslyEntered = strEntered
+		return MailAutoText.hooks[M.luaComposeMail]["OnInfoChanged"](M.luaComposeMail, wndHandler, wndControl)
+	end
+	
+	-- Check if current value has an addressBook entry in any address book. Priority is Friend > Guild > Circle.
+	local strMatched
+	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.friends, strEntered)
+	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.guild, strEntered)
+	for _,circle in ipairs(MailAutoText.addressBook.circles) do
+		strMatched = strMatched or MailAutoText:GetNameMatch(circle, strEntered)
+	end
+		
+	if strMatched ~= nil then
+		-- Match found, set To-field text to the full name, and select the auto-completed part
+		log:debug("Updating entered input '%s' to matched input '%s'", strEntered, strMatched)
+		M.luaComposeMail.wndNameEntry:SetText(strMatched)
+		M.luaComposeMail.wndNameEntry:SetSel(string.len(strEntered), string.len(strMatched))
+	end
+	
+	-- Update previously entered value and pass update along to Mail GUI
+	MailAutoText.strPreviouslyEntered = strEntered
+	return MailAutoText.hooks[M.luaComposeMail]["OnInfoChanged"](M.luaComposeMail, wndHandler, wndControl)
+end
+
+
+--[[
+	ADDRESS BOOK CODE BELOW
+	-----------------------
+	
+	The address book is series of nested tables resembling a tree. The name "Brofessional"
+	would be added to the address book tree like this (notice all lower case keys):
+	
+		addressBook["b"]["r"]["o"]["f"]["e"]["s"]["s"]["i"]["o"]["n"]["a"]["l"]
+	
+	Each node in this tree also contains a matchedName property. So:
+	
+		addressBook["b"].matchedName = "Brofessional"
+		addressBook["b"]["r"]["o"]["f"].matchedName = "Brofessional"
+
+	The matchedName property always contains the first (alphabetically) complete matched
+	name for this node. F.ex. adding the names "Bro" and "Brock" produce these results:
+
+		addressBook["b"].matchedName = "Bro"
+		addressBook["b"]["r"]["o"].matchedName = "Bro"
+		addressBook["b"]["r"]["o"]["c"].matchedName = "Brock"
+		addressBook["b"]["r"]["o"]["f"].matchedName = "Brofessional"		
+	
+	
+	This structure should provide these desired speed properties. Obviously I have, like, 
+	at least 20 pages of super-math to prove this, I just choose to keep them secret :P
+	
+		* Searching for a match: Very fast
+		* Adding a name: Fast
+		* Removing a name: Slow (total rebuild of the addressBook)
+		
+	The user should only notice the search-time, since adding/removing names is done in
+	the background during addon load and guild/friend list update events.
+]]
+	
+function MailAutoText:AddName(book, strName, i, node)
+	if i == nil then
+		log:debug(string.format("Adding '%s' to the address book", strName))
+	end
+
+	-- First hit, set index to 1 and current node to addressBook tree root
+	i = i or 1
+	node = node or book
+	
+	-- Char at index i in the full name, lowered
+	local char = strName:sub(i, i):lower()
+	
+	-- Check if a child node exist for this char
+	local childNode = node[char]
+	
+	if childNode == nil then
+		-- No child node found, create one and set matchedName for this node to input name
+		childNode = {matchedName = strName}
+		node[char] = childNode		
+	else		
+		-- Node already exist. Update matched name if the current name is alphabetically "lower".
+		if strName < childNode.matchedName then
+			childNode.matchedName = strName
+		end
+	end
+	
+	-- Proceed with next char in the input name
+	if i == strName:len() then 		
+		return -- recursion base
+	end
+	
+	-- Tail-call recursion, avoids stack buildup as addressBook is being constructed.
+	MailAutoText:AddName(book, strName, i+1, childNode)
+end
+
+-- Gets the best name match from the address book dictionary
+function MailAutoText:GetNameMatch(book, part)
+	local lower = part:lower()
+	local node = book
+	
+	-- Find the deepest node in the tree, matching the entered text char-by-char
+	for i=1, #lower do
+		local c = lower:sub(i,i)		
+		local childNode = node[c]
+		if childNode == nil then
+			-- Text entered does not match any addressbook name, return nil
+			return nil
+		else
+			-- Char matches a node, go deeper
+			node = childNode
+		end		
+	end
+	
+	local result
+	if node == nil then 
+		result = part 
+	else
+		result = node.matchedName or part
+	end	
+	
+	log:debug("Matched input '%s' to '%s'", part, result)
+	return result
+end
+
+
+function MailAutoText:OnGuildMemberChange(guild)
+	log:debug("Guild or circle changed, requesting roster")
+	guild:RequestMembers()
+end
+
+function MailAutoText:OnGuildRoster(guild, roster)
+	-- Fresh address book, replaces current guild or circle book
+	local book = {}
+		
+	if guild:GetType() == GuildLib.GuildType_Guild then
+		log:info("Updating address book for guild '%s'", guild:GetName())
+		self.addressBook.guild = book		
+	end
+	
+	if guild:GetType() == GuildLib.GuildType_Circle then
+		log:info("Updating address book for circle '%s'", guild:GetName())
+		self.addressBook.circles[guild:GetName()] = book
+	end
+	
+	for _,member in ipairs(roster) do
+		MailAutoText:AddName(book, member.strName)
+	end
+end
+
+function MailAutoText:AddFriends(book)
+	log:info("Adding friends to address book")
+	
+	local friends = FriendshipLib:GetList()
+	MailAutoText.friends = friends
+	for _,friend in ipairs(friends) do
+		-- Same-realm friends only... can't send mail to other realms can we?
+		if friend.strRealmName == GameLib.GetRealmName() then
+			MailAutoText:AddName(book, friend.strCharacterName)
+		end
+	end
 end
