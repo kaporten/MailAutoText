@@ -31,7 +31,7 @@ function MailAutoText:OnEnable()
 	self.addressBook.guild = {}
 	self.addressBook.circles = {}
 
-	-- Register for gulid/circle changes, so address book can be updated
+	-- Register for guild/circle changes, so address book can be updated
 	Apollo.RegisterEventHandler("GuildRoster", "OnGuildRoster", self)
 	Apollo.RegisterEventHandler("GuildMemberChange", "OnGuildMemberChange", self)
 	
@@ -41,7 +41,7 @@ function MailAutoText:OnEnable()
 	end
 	
 	-- Add friends to address book as well
-	self:AddFriends(self.addressBook.friends)
+	self:AddFriends(self.addressBook.friends)	
 	
 	-- Used during name autocompletion to detect when you're deleting stuff from the To-field.
 	self.strPreviouslyEntered = ""
@@ -468,18 +468,18 @@ end
 	
 		addressBook["b"]["r"]["o"]["f"]["e"]["s"]["s"]["i"]["o"]["n"]["a"]["l"]
 	
-	Each node in this tree also contains a matchedName property. So:
+	Each node in this tree also contains a match property. So:
 	
-		addressBook["b"].matchedName = "Brofessional"
-		addressBook["b"]["r"]["o"]["f"].matchedName = "Brofessional"
+		addressBook["b"].match = "Brofessional"
+		addressBook["b"]["r"]["o"]["f"].match = "Brofessional"
 
-	The matchedName property always contains the first (alphabetically) complete matched
+	The match property always contains the first (alphabetically) complete matched
 	name for this node. F.ex. adding the names "Bro" and "Brock" produce these results:
 
-		addressBook["b"].matchedName = "Bro"
-		addressBook["b"]["r"]["o"].matchedName = "Bro"
-		addressBook["b"]["r"]["o"]["c"].matchedName = "Brock"
-		addressBook["b"]["r"]["o"]["f"].matchedName = "Brofessional"		
+		addressBook["b"].match = "Bro"
+		addressBook["b"]["r"]["o"].match = "Bro"
+		addressBook["b"]["r"]["o"]["c"].match = "Brock"
+		addressBook["b"]["r"]["o"]["f"].match = "Brofessional"		
 	
 	
 	This structure should provide these desired speed properties. Obviously I have, like, 
@@ -509,13 +509,13 @@ function MailAutoText:AddName(book, strName, i, node)
 	local childNode = node[char]
 	
 	if childNode == nil then
-		-- No child node found, create one and set matchedName for this node to input name
-		childNode = {matchedName = strName}
+		-- No child node found, create one and set match for this node to input name
+		childNode = {match = strName}
 		node[char] = childNode		
 	else		
 		-- Node already exist. Update matched name if the current name is alphabetically "lower".
-		if strName < childNode.matchedName then
-			childNode.matchedName = strName
+		if strName < childNode.match then
+			childNode.match = strName
 		end
 	end
 	
@@ -550,7 +550,7 @@ function MailAutoText:GetNameMatch(book, part)
 	if node == nil then 
 		result = part 
 	else
-		result = node.matchedName or part
+		result = node.match or part
 	end	
 	
 	log:debug("Matched input '%s' to '%s'", part, result)
@@ -564,32 +564,29 @@ function MailAutoText:OnGuildMemberChange(guild)
 end
 
 function MailAutoText:OnGuildRoster(guild, roster)
-	-- Fresh address book, replaces current guild or circle book
+	-- Fresh address book, populate with guild/circle data
 	local book = {}
-		
+	for _,member in ipairs(roster) do
+		MailAutoText:AddName(book, member.strName)
+	end
+
+	-- Replace current book
 	if guild:GetType() == GuildLib.GuildType_Guild then
 		log:info("Updating address book for guild '%s'", guild:GetName())
 		self.addressBook.guild = book		
 	end
-	
 	if guild:GetType() == GuildLib.GuildType_Circle then
 		log:info("Updating address book for circle '%s'", guild:GetName())
 		self.addressBook.circles[guild:GetName()] = book
-	end
-	
-	for _,member in ipairs(roster) do
-		MailAutoText:AddName(book, member.strName)
-	end
+	end	
 end
 
 function MailAutoText:AddFriends(book)
-	log:info("Adding friends to address book")
-	
+	log:info("Adding friends to address book")	
 	local friends = FriendshipLib:GetList()
-	MailAutoText.friends = friends
 	for _,friend in ipairs(friends) do
 		-- Same-realm friends only... can't send mail to other realms can we?
-		if friend.strRealmName == GameLib.GetRealmName() then
+		if friend.bFriend == true and friend.strRealmName == GameLib.GetRealmName() then
 			MailAutoText:AddName(book, friend.strCharacterName)
 		end
 	end
