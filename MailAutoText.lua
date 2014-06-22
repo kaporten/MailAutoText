@@ -514,10 +514,6 @@ function MailAutoText:AddName(book, strName)
 end
 
 function MailAutoText:_addName(book, strName, i, node)
-	-- First hit, set index to 1 and current node to addressBook tree root
-	i = i or 1
-	node = node or book
-	
 	-- Char at index i in the full name, lowered
 	local char = strName:sub(i, i):lower()
 	
