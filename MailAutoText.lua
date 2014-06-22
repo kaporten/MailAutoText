@@ -1,10 +1,11 @@
 
+require "Apollo"
 require "Window"
 require "GameLib"
-require "Apollo"
+require "GuildLib"
 require "FriendshipLib"
 
-local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
+local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail", "GeminiConsole"}, "Gemini:Hook-1.0")
 MailAutoText.ADDON_VERSION = {2, 0, 0}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
@@ -40,12 +41,11 @@ function MailAutoText:OnEnable()
 		guild:RequestMembers()
 	end
 	
-	-- Add friends to address book as well
-	self:AddFriends(self.addressBook.friends)	
+	log:debug("Address book initialized")
 	
 	-- Used during name autocompletion to detect when you're deleting stuff from the To-field.
 	self.strPreviouslyEntered = ""
-	
+	log:warn("GetAddon Mail, startaa")
 	--[[
 		Hooking into the mail composition GUI itself can only be done 
 		once the "luaMailCompose" object is initialized inside Mail. 
@@ -105,6 +105,10 @@ function MailAutoText:HookMailModificationFunctions()
 	MailAutoText:RawHook(luaMail, "OnClosed", MailAutoText.OnClosed) 						-- Mail is closed for whatever reason (cancelled/sent)
 	
 	log:debug("Compose Mail editing functions hooked")
+	
+	-- HACK: Request friend list per mail opened. Figure out which events to react (a la guild) to instead	
+	MailAutoText:AddFriends(MailAutoText.addressBook.friends)	
+	log:debug("Friends address book updated")
 end
 
 --[[ 
@@ -492,12 +496,17 @@ end
 	The user should only notice the search-time, since adding/removing names is done in
 	the background during addon load and guild/friend list update events.
 ]]
-	
-function MailAutoText:AddName(book, strName, i, node)
-	if i == nil then
-		log:debug(string.format("Adding '%s' to the address book", strName))
-	end
 
+function MailAutoText:AddName(book, strName)
+	log:debug(string.format("Adding '%s' to the address book", strName))
+	
+	-- TODO: Add "skip myself" check
+	
+	-- First hit, set index to 1 and current node to addressBook tree root
+	MailAutoText:_addName(book, strName, 1, book)	
+end
+
+function MailAutoText:_addName(book, strName, i, node)
 	-- First hit, set index to 1 and current node to addressBook tree root
 	i = i or 1
 	node = node or book
@@ -525,7 +534,7 @@ function MailAutoText:AddName(book, strName, i, node)
 	end
 	
 	-- Tail-call recursion, avoids stack buildup as addressBook is being constructed.
-	MailAutoText:AddName(book, strName, i+1, childNode)
+	MailAutoText:_addName(book, strName, i+1, childNode)
 end
 
 -- Gets the best name match from the address book dictionary
@@ -573,12 +582,12 @@ function MailAutoText:OnGuildRoster(guild, roster)
 	-- Replace current book
 	if guild:GetType() == GuildLib.GuildType_Guild then
 		log:info("Updating address book for guild '%s'", guild:GetName())
-		self.addressBook.guild = book		
+		self.addressBook.guild = book
 	end
 	if guild:GetType() == GuildLib.GuildType_Circle then
 		log:info("Updating address book for circle '%s'", guild:GetName())
 		self.addressBook.circles[guild:GetName()] = book
-	end	
+	end
 end
 
 function MailAutoText:AddFriends(book)
