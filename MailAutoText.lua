@@ -500,7 +500,14 @@ end
 function MailAutoText:AddName(book, strName)
 	log:debug(string.format("Adding '%s' to the address book", strName))
 	
-	-- TODO: Add "skip myself" check
+	--- Don't add self to address book
+	if MailAutoText.strPlayerName == nil then
+		MailAutoText.strPlayerName = GameLib.GetPlayerUnit():GetName()
+	end
+	
+	if MailAutoText.strPlayerName == strName then 
+		return
+	end
 	
 	-- First hit, set index to 1 and current node to addressBook tree root
 	MailAutoText:_addName(book, strName, 1, book)	
