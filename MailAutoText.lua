@@ -45,7 +45,7 @@ function MailAutoText:OnEnable()
 	
 	-- Used during name autocompletion to detect when you're deleting stuff from the To-field.
 	self.strPreviouslyEntered = ""
-	log:warn("GetAddon Mail, startaa")
+
 	--[[
 		Hooking into the mail composition GUI itself can only be done 
 		once the "luaMailCompose" object is initialized inside Mail. 
