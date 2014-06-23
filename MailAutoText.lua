@@ -5,7 +5,7 @@ require "GameLib"
 require "GuildLib"
 require "FriendshipLib"
 
-local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail", "GeminiConsole"}, "Gemini:Hook-1.0")
+local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
 MailAutoText.ADDON_VERSION = {2, 0, 0}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Addon Author="porten" APIVersion="8" Name="MailAutoText" Description="WildStar addon for automatically filling new mail recipient, subject and body.">
+	<Script Name="Libs/GeminiAddon/GeminiAddon.lua"/>
+	<Script Name="Libs/GeminiLogging/GeminiLogging.lua"/>
+	<Script Name="Libs/GeminiHook/GeminiHook-1.0.lua"/>
+	<Script Name="Libs/GeminiLocale/GeminiLocale.lua"/>
 	<Script Name="Locale/enUS.lua"/>
 	<Script Name="Locale/deDE.lua"/>
 	<Script Name="Locale/frFR.lua"/>
-	<Script Name="Libs/GeminiAddon/GeminiAddon.lua"/>
-	<Script Name="Libs/GeminiHook/GeminiHook-1.0.lua"/>
-	<Script Name="Libs/GeminiLogging/GeminiLogging.lua"/>
-	<Script Name="Libs/GeminiLocale/GeminiLocale.lua"/>
 	<Script Name="MailAutoText.lua"/>
 </Addon>
