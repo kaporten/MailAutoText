@@ -106,7 +106,7 @@ function MailAutoText:HookMailModificationFunctions()
 	
 	log:debug("Compose Mail editing functions hooked")
 	
-	-- HACK: Request friend list per mail opened. Figure out which events to react (a la guild) to instead	
+	-- HACK: Request friend list per mail opened. Figure out which events to react (a la guild) to instead
 	MailAutoText:AddFriends(MailAutoText.addressBook.friends)	
 	log:debug("Friends address book updated")
 end
@@ -428,17 +428,23 @@ end
 function MailAutoText:OnRecipientChanged(wndHandler, wndControl)
 	local strEntered = M.luaComposeMail.wndNameEntry:GetText()
 	local strPreviouslyEntered = MailAutoText.strPreviouslyEntered
+			
+	-- Length of current vs previous field used to detect text deletions (which should not trigger auto-completion)
+	local iLenEntered = string.len(strEntered) or 0
+	local iLenPreviouslyEntered = string.len(strPreviouslyEntered) or 0
+	local iSelLength = MailAutoText.iSelLength or 0
 	
-	log:debug("Recipient changed. strEntered='%s', strPreviouslyEntered=", strEntered, strPreviouslyEntered)
-		
-	-- Do not react if user is deleting chars from recipient field value
+	log:debug("Recipient changed. strEntered='%s', strPreviouslyEntered='%s', iLenEntered=%d, iLenPreviouslyEntered=%d, iSelLength=%d", strEntered, strPreviouslyEntered, iLenEntered, iLenPreviouslyEntered, iSelLength)
+	
 	if strPreviouslyEntered ~= "" -- Must have a previously entered value
-			and string.len(strEntered)<=string.len(strPreviouslyEntered) -- Current entered text must shorter than last entered
-			and string.find(string.lower(strPreviouslyEntered), string.lower(strEntered)) == 1 then -- Current entered text must be a starts-with match of last entered
+			and (iLenEntered==iLenPreviouslyEntered-1 or iLenEntered==iLenPreviouslyEntered-iSelLength) -- Removed a char, or removed auto-matched selection				
+			and string.find(strPreviouslyEntered, strEntered) == 1 then -- Current text is a starts-with substring of old text
    
-		-- Update previously entered value and pass update along to Mail GUI
+		-- Text-deletion identified, do not auto-complete. 
+		-- Update previously entered value + selection size, and pass update along to Mail GUI.
 		log:debug("Deleting characters, skipping auto-completion")
 		MailAutoText.strPreviouslyEntered = strEntered
+		MailAutoText.iSelLength = 0
 		return MailAutoText.hooks[M.luaComposeMail]["OnInfoChanged"](M.luaComposeMail, wndHandler, wndControl)
 	end
 	
@@ -454,7 +460,16 @@ function MailAutoText:OnRecipientChanged(wndHandler, wndControl)
 		-- Match found, set To-field text to the full name, and select the auto-completed part
 		log:debug("Updating entered input '%s' to matched input '%s'", strEntered, strMatched)
 		M.luaComposeMail.wndNameEntry:SetText(strMatched)
-		M.luaComposeMail.wndNameEntry:SetSel(string.len(strEntered), string.len(strMatched))
+
+		-- Calc selection size and store on MailAutoText object (used to determine text-deletions in future passes)
+		local iSelStart, iSelEnd = string.len(strEntered), string.len(strMatched)
+		MailAutoText.iSelLength = iSelEnd-iSelStart
+		
+		-- Select auto-added name text
+		M.luaComposeMail.wndNameEntry:SetSel(iSelStart, iSelEnd)
+		
+		-- Consider the fully matched text as "entered" for next pass, for proper deletion-detection.
+		strEntered = strMatched
 	end
 	
 	-- Update previously entered value and pass update along to Mail GUI
@@ -558,12 +573,7 @@ function MailAutoText:GetNameMatch(book, part)
 		end		
 	end
 	
-	local result
-	if node == nil then 
-		result = part 
-	else
-		result = node.match or part
-	end	
+	local result = node.match or part
 	
 	log:debug("Matched input '%s' to '%s'", part, result)
 	return result
