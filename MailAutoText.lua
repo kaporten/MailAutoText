@@ -6,7 +6,7 @@ require "GuildLib"
 require "FriendshipLib"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {2, 1, 0}
+MailAutoText.ADDON_VERSION = {2, 1, 1}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
@@ -451,8 +451,8 @@ function MailAutoText:OnRecipientChanged(wndHandler, wndControl)
 	-- Check if current value has an addressBook entry in any address book. Priority is Friend > Guild > Circle.
 	local strMatched
 	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.friends, strEntered)
-	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.guild, strEntered)
-	for _,circle in ipairs(MailAutoText.addressBook.circles) do
+	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.guild, strEntered)	
+	for _,circle in pairs(MailAutoText.addressBook.circles) do		
 		strMatched = strMatched or MailAutoText:GetNameMatch(circle, strEntered)
 	end
 		
