@@ -6,7 +6,7 @@ require "GuildLib"
 require "FriendshipLib"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {2, 1, 1}
+MailAutoText.ADDON_VERSION = {2, 2, 0}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
@@ -28,6 +28,7 @@ function MailAutoText:OnEnable()
 
 	-- Prepare empty address book	
 	self.addressBook = {}
+	self.addressBook.alts = {} -- may have been populated during OnRestoreSettings
 	self.addressBook.friends = {}
 	self.addressBook.guild = {}
 	self.addressBook.circles = {}
@@ -62,6 +63,20 @@ function MailAutoText:OnEnable()
 
 	MailAutoText:RawHook(M, "ComposeMail", MailAutoText.HookMailModificationFunctions)
 	
+	-- Add current character name under current realm name table, if not already present
+	-- This is a total list of all known chars for all realms
+	local arc = GameLib:GetAccountRealmCharacter() -- get Account/Name/Realm info
+	self.tAlts = self.tAlts or {}
+	self.tAlts[arc.strRealm] = self.tAlts[arc.strRealm] or {}
+	self.tAlts[arc.strRealm][arc.strCharacter] = true
+
+	-- Add all alts (minus this char) for current realm to the alt-book
+	for alt,_ in pairs(self.tAlts[arc.strRealm]) do
+		if alt ~= arc.strCharacter then
+			MailAutoText:AddName(self.addressBook.alts, alt)		
+		end
+	end
+
 	log:debug("Addon loaded, ComposeMail hook in place")
 end
 
@@ -613,3 +628,24 @@ function MailAutoText:AddFriends(book)
 		end
 	end
 end
+
+
+--[[ Settings save/load --]]
+
+function MailAutoText:OnSave(eType)
+	if eType ~= GameLib.CodeEnumAddonSaveLevel.Realm then 
+		return 
+	end
+
+	return self.tAlts
+end
+
+function MailAutoText:OnRestore(eType, tSavedData)
+	if eType ~= GameLib.CodeEnumAddonSaveLevel.Realm then 
+		return 
+	end
+	
+	-- Restore savedata
+	self.tAlts = tSavedData
+end
+
