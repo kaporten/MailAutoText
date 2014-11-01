@@ -28,7 +28,7 @@ function MailAutoText:OnEnable()
 
 	-- Prepare empty address book	
 	self.addressBook = {}
-	self.addressBook.alts = {} -- may have been populated during OnRestoreSettings
+	self.addressBook.alts = {}
 	self.addressBook.friends = {}
 	self.addressBook.guild = {}
 	self.addressBook.circles = {}
@@ -77,6 +77,8 @@ function MailAutoText:OnEnable()
 		end
 	end
 
+	Apollo.RegisterSlashCommand("mailautotext", "OnSlashCommand", self)
+	
 	log:debug("Addon loaded, ComposeMail hook in place")
 end
 
@@ -463,8 +465,9 @@ function MailAutoText:OnRecipientChanged(wndHandler, wndControl)
 		return MailAutoText.hooks[M.luaComposeMail]["OnInfoChanged"](M.luaComposeMail, wndHandler, wndControl)
 	end
 	
-	-- Check if current value has an addressBook entry in any address book. Priority is Friend > Guild > Circle.
-	local strMatched
+	-- Check if current value has an addressBook entry in any address book. Priority is Alt > Friend > Guild > Circle.
+	local strMatched	
+	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.alts, strEntered)
 	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.friends, strEntered)
 	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.guild, strEntered)	
 	for _,circle in pairs(MailAutoText.addressBook.circles) do		
@@ -630,6 +633,20 @@ function MailAutoText:AddFriends(book)
 end
 
 
+function MailAutoText:OnSlashCommand(cmd, param)
+	if string.lower(param) == "clear" then
+		local arc = GameLib:GetAccountRealmCharacter()
+		self.addressBook.alts = {}
+		self.tAlts[arc.strRealm] = {}
+		
+		-- Re-add self
+		self.tAlts[arc.strRealm][arc.strCharacter] = true		
+		Print("MailAutoText: Alt-lists cleared.")
+	else
+		Print("Type \"/mailautotext clear\" to clear alt-lists.")		
+	end
+end
+
 --[[ Settings save/load --]]
 
 function MailAutoText:OnSave(eType)
@@ -648,4 +665,3 @@ function MailAutoText:OnRestore(eType, tSavedData)
 	-- Restore savedata
 	self.tAlts = tSavedData
 end
-
