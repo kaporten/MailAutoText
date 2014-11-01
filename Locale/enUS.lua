@@ -10,3 +10,8 @@ L["Subject_Items"] = "Sending items"
 L["Subject_Cash"] = "Sending cash"
 L["Subject_Both"] = "Sending cash and items"
 L["Subject_COD"] = "Sending items for payment"
+
+L["MatchedSource_Tooltip_Alt"] = "Alt"
+L["MatchedSource_Tooltip_Friend"] = "Friend"
+L["MatchedSource_Tooltip_Guild"] = "Guild member" 
+L["MatchedSource_Tooltip_Circle"] = "Member of circle '%s'"

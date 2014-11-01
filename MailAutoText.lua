@@ -445,7 +445,9 @@ end
 function MailAutoText:OnRecipientChanged(wndHandler, wndControl)
 	local strEntered = M.luaComposeMail.wndNameEntry:GetText()
 	local strPreviouslyEntered = MailAutoText.strPreviouslyEntered
-			
+
+	MailAutoText.strTooltip = ""
+	
 	-- Length of current vs previous field used to detect text deletions (which should not trigger auto-completion)
 	local iLenEntered = string.len(strEntered) or 0
 	local iLenPreviouslyEntered = string.len(strPreviouslyEntered) or 0
@@ -461,17 +463,29 @@ function MailAutoText:OnRecipientChanged(wndHandler, wndControl)
 		-- Update previously entered value + selection size, and pass update along to Mail GUI.
 		log:debug("Deleting characters, skipping auto-completion")
 		MailAutoText.strPreviouslyEntered = strEntered
-		MailAutoText.iSelLength = 0
+		MailAutoText.iSelLength = 0		
+		MailAutoText:UpdateTooltip()
 		return MailAutoText.hooks[M.luaComposeMail]["OnInfoChanged"](M.luaComposeMail, wndHandler, wndControl)
 	end
 	
-	-- Check if current value has an addressBook entry in any address book. Priority is Alt > Friend > Guild > Circle.
-	local strMatched	
+	-- Check if current value has an addressBook entry in any address book. Priority is Alt > Friend > Guild > Circle.	
+	local strMatched
+	
+	-- Check alt book
 	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.alts, strEntered)
+	if strMatched ~= nil and MailAutoText.strTooltip == "" then MailAutoText.strTooltip = L["MatchedSource_Tooltip_Alt"] end	
+	
+	-- Check friend book
 	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.friends, strEntered)
+	if strMatched ~= nil and MailAutoText.strTooltip == "" then MailAutoText.strTooltip = L["MatchedSource_Tooltip_Friend"] end	
+	
+	-- Check guild book
 	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.guild, strEntered)	
-	for _,circle in pairs(MailAutoText.addressBook.circles) do		
+	if strMatched ~= nil and MailAutoText.strTooltip == "" then MailAutoText.strTooltip = L["MatchedSource_Tooltip_Guild"] end	
+	
+	for circleName,circle in pairs(MailAutoText.addressBook.circles) do		
 		strMatched = strMatched or MailAutoText:GetNameMatch(circle, strEntered)
+		if strMatched ~= nil and MailAutoText.strTooltip == "" then MailAutoText.strTooltip = string.format(L["MatchedSource_Tooltip_Circle"], circleName) end
 	end
 		
 	if strMatched ~= nil then
@@ -484,15 +498,23 @@ function MailAutoText:OnRecipientChanged(wndHandler, wndControl)
 		MailAutoText.iSelLength = iSelEnd-iSelStart
 		
 		-- Select auto-added name text
-		M.luaComposeMail.wndNameEntry:SetSel(iSelStart, iSelEnd)
+		M.luaComposeMail.wndNameEntry:SetSel(iSelStart, iSelEnd)		
 		
 		-- Consider the fully matched text as "entered" for next pass, for proper deletion-detection.
 		strEntered = strMatched
 	end
 	
+	MailAutoText:UpdateTooltip()
+	
 	-- Update previously entered value and pass update along to Mail GUI
 	MailAutoText.strPreviouslyEntered = strEntered
 	return MailAutoText.hooks[M.luaComposeMail]["OnInfoChanged"](M.luaComposeMail, wndHandler, wndControl)
+end
+
+function MailAutoText:UpdateTooltip()
+	-- Update tooltip regardless of match status
+	M.luaComposeMail.wndNameEntry:SetTooltip(self.strTooltip)
+	M.luaComposeMail.wndNameEntry:SetTooltipType(3) -- Wish I knew the code-enum value for this :-/
 end
 
 
