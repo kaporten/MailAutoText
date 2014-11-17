@@ -6,7 +6,7 @@ require "GuildLib"
 require "FriendshipLib"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {2, 2, 0}
+MailAutoText.ADDON_VERSION = {2, 3, 0}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
@@ -229,25 +229,6 @@ function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
 	return ret
 end
 
-function MailAutoText:GoldPrettyPrint(monAmount)
-	if monAmount == 0 then
-		return ""
-	end
-
-	local strAmount = tostring(monAmount)
-	local copper = string.sub(strAmount, -2, -1)
-	local silver = string.sub(strAmount, -4, -3)
-	local gold = string.sub(strAmount, -6, -5)
-	local plat = string.sub(strAmount, -8, -7)
-
-	local strResult = ""
-	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(plat, "Platinum"))
-	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(gold, "Gold"))
-	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(silver, "Silver"))
-	strResult = MailAutoText:AppendDenomination(strResult, MailAutoText:PrettyPrintDenomination(copper, "Copper"))
-
-	return(strResult)
-end
 
 function MailAutoText:IsSendingCash()
 	if M.luaComposeMail ~= nil then
@@ -267,35 +248,6 @@ end
 
 function MailAutoText:HasAttachments()
 	return M.luaComposeMail ~= nil and M.luaComposeMail.arAttachments ~= nil and #M.luaComposeMail.arAttachments > 0
-end
-
-function MailAutoText:AppendDenomination(strFull, strAmount)
-	local strResult = strFull
-
-	-- If we're adding text to an existing string, insert a space
-	if string.len(strResult) > 0 and string.len(strAmount) > 0 then
-		strResult = strResult .. " "
-	end
-
-	-- Added current denom-string (if any) to the existing string
-	if string.len(strAmount) > 0 then
-		strResult = strResult .. strAmount
-	end
-
-	return strResult
-end
-
-function MailAutoText:PrettyPrintDenomination(strAmount, strDenomination)
-	local strResult = ""
-	if strAmount ~= nil and strAmount ~= "" and strAmount ~= "00" then
-		if string.sub(strAmount, 1, 1) == "0" then
-			-- Don't print "04 Silver", just "4 Silver"
-			strResult = string.sub(strAmount, 2, 2) .. " " .. strDenomination
-		else
-			strResult = strAmount .. " " .. strDenomination
-		end
-	end
-	return strResult
 end
 
 -- Called whenever an attachment is added or removed. Produces a string describing all attachments.
@@ -389,8 +341,8 @@ end
 function MailAutoText:UpdateMessage()
 	log:debug("Updating message")
 
-	local strCredits = MailAutoText:GoldPrettyPrint(M.luaComposeMail.wndCashWindow:GetAmount())
-	local bCreditsText = (MailAutoText:IsSendingCash() or MailAutoText:IsRequestingCash()) and strCredits ~= ""
+	local amtCash = M.luaComposeMail.wndCashWindow:GetAmount()
+	local bCreditsText = (MailAutoText:IsSendingCash() or MailAutoText:IsRequestingCash()) and amtCash ~= nil
 	local bItemListText = MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= ""
 
 	-- Update subject
@@ -423,12 +375,15 @@ function MailAutoText:UpdateMessage()
 	end
 
 	-- Append credits text if sending credits
-	if bCreditsText == true then		
+	if bCreditsText == true then
+		local m = Money.new(Money.CodeEnumCurrencyType.Credits)
+		m:SetAmount(amtCash)
+		
 		if MailAutoText:IsRequestingCash() == true then
-			newBody = newBody .. Apollo.GetString("CRB_Request_COD") .. ": " .. strCredits .. "\n"
+			newBody = newBody .. Apollo.GetString("CRB_Request_COD") .. ": " .. m:GetMoneyString() .. "\n"
 		end
 		if MailAutoText:IsSendingCash() == true then
-			newBody = newBody .. Apollo.GetString("CRB_Send_Money") .. ": " .. strCredits .. "\n"
+			newBody = newBody .. Apollo.GetString("CRB_Send_Money") .. ": " .. m:GetMoneyString() .. "\n"
 		end
 	end
 
