@@ -1,85 +1,27 @@
-
 require "Apollo"
 require "Window"
 require "GameLib"
-require "GuildLib"
-require "FriendshipLib"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {2, 3, 0}
+MailAutoText.ADDON_VERSION = {3, 0, 0}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
-
--- GeminiLoging, initialized during OnEnable
-local log
 
 -- Reference to Mail addon, initialized during OnEnable
 local M
 
 function MailAutoText:OnEnable()
-	local GeminiLogging = Apollo.GetPackage("Gemini:Logging-1.2").tPackage
-	log = GeminiLogging:GetLogger({
-		level = GeminiLogging.FATAL,
-		pattern = "%d %n %c %l - %m",
-		appender = "GeminiConsole"
-	})
-	MailAutoText.log = log -- store ref for GeminiConsole-access to loglevel
-	log:info("Initializing addon 'MailAutoText'")
-
-	-- Prepare empty address book	
-	self.addressBook = {}
-	self.addressBook.alts = {}
-	self.addressBook.friends = {}
-	self.addressBook.guild = {}
-	self.addressBook.circles = {}
-
-	-- Register for guild/circle changes, so address book can be updated
-	Apollo.RegisterEventHandler("GuildRoster", "OnGuildRoster", self)
-	Apollo.RegisterEventHandler("GuildMemberChange", "OnGuildMemberChange", self)
-	
-	-- Trigger guild address book population
-	for _,guild in ipairs(GuildLib.GetGuilds()) do
-		guild:RequestMembers()
-	end
-	
-	log:debug("Address book initialized")
-	
-	-- Used during name autocompletion to detect when you're deleting stuff from the To-field.
-	self.strPreviouslyEntered = ""
-
 	--[[
 		Hooking into the mail composition GUI itself can only be done 
 		once the "luaMailCompose" object is initialized inside Mail. 
 		So posthook on the "compose mail" button-function, and set up 
 		futher hooks once there.
 	]]
-	
-	-- Get permanent ref to addon mail - stop addon if Mail cannot be found.
+	-- Get permanent ref to addon mail - stop addon initializationif Mail cannot be found.
 	M = Apollo.GetAddon("Mail")	
-	if M == nil then
-		log:fatal("Could not load addon 'Mail'")
-		return
+	if M ~= nil then
+		MailAutoText:RawHook(M, "ComposeMail", MailAutoText.HookMailModificationFunctions)
 	end
-
-	MailAutoText:RawHook(M, "ComposeMail", MailAutoText.HookMailModificationFunctions)
-	
-	-- Add current character name under current realm name table, if not already present
-	-- This is a total list of all known chars for all realms
-	local arc = GameLib:GetAccountRealmCharacter() -- get Account/Name/Realm info
-	self.tAlts = self.tAlts or {}
-	self.tAlts[arc.strRealm] = self.tAlts[arc.strRealm] or {}
-	self.tAlts[arc.strRealm][arc.strCharacter] = true
-
-	-- Add all alts (minus this char) for current realm to the alt-book
-	for alt,_ in pairs(self.tAlts[arc.strRealm]) do
-		if alt ~= arc.strCharacter then
-			MailAutoText:AddName(self.addressBook.alts, alt)		
-		end
-	end
-
-	Apollo.RegisterSlashCommand("mailautotext", "OnSlashCommand", self)
-	
-	log:debug("Addon loaded, ComposeMail hook in place")
 end
 
 -- Sets up hooks for client-side mail content modifications
@@ -87,7 +29,6 @@ function MailAutoText:HookMailModificationFunctions()
 	-- First, call the original ComposeMail function
 	MailAutoText.hooks[M]["ComposeMail"](M)
 	
-	log:debug("New Compose Mail window opened, hooking functions")
 	local luaMail = M.luaComposeMail
 	
 	--[[
@@ -100,7 +41,6 @@ function MailAutoText:HookMailModificationFunctions()
 	]]	
 	local bAlreadyHooked = MailAutoText:IsHooked(luaMail, "OnClickAttachment")
 	if bAlreadyHooked then 
-		log:debug("Compose Mail was already hooked, skipping")
 		return 
 	end	
 	
@@ -114,24 +54,14 @@ function MailAutoText:HookMailModificationFunctions()
 	MailAutoText:RawHook(luaMail, "OnMoneyCODUncheck", MailAutoText.OnMoneyCODUncheck) 		-- "Request" unchecked
 	MailAutoText:RawHook(luaMail, "OnMoneySendCheck", MailAutoText.OnMoneySendCheck) 		-- "Send" checked
 	MailAutoText:RawHook(luaMail, "OnMoneySendUncheck", MailAutoText.OnMoneySendUncheck) 	-- "Send" unchecked	
-
-	-- Recipient
-	MailAutoText:RawHook(luaMail, "OnInfoChanged", MailAutoText.OnRecipientChanged)			-- Recipient field changed
 	
 	-- Mail closed
 	MailAutoText:RawHook(luaMail, "OnClosed", MailAutoText.OnClosed) 						-- Mail is closed for whatever reason (cancelled/sent)
-	
-	log:debug("Compose Mail editing functions hooked")
-	
-	-- HACK: Request friend list per mail opened. Figure out which events to react (a la guild) to instead
-	MailAutoText:AddFriends(MailAutoText.addressBook.friends)	
-	log:debug("Friends address book updated")
 end
 
 --[[ 
 	Cash state-change hook functions.
 ]]
-
 function MailAutoText:OnCashAmountChanged()
 	MailAutoText:CashStateChanged("OnCashAmountChanged")
 end
@@ -153,8 +83,6 @@ function MailAutoText:OnMoneySendUncheck(wndHandler, wndControl)
 end
 
 function MailAutoText:CashStateChanged(functionName, wndHandler, wndControl)
-	log:debug("Cash button stage change: %s", functionName)
-	
 	-- Pass call to original function
 	local ret = MailAutoText.hooks[M.luaComposeMail][functionName](M.luaComposeMail, wndHandler, wndControl)
 	
@@ -168,8 +96,6 @@ function MailAutoText:CashStateChanged(functionName, wndHandler, wndControl)
 end
 
 function MailAutoText:OnClosed(wndHandler)
-	log:debug("Compose Mail window closed")
-	
 	-- Pass call on to original function
 	local ret = MailAutoText.hooks[M.luaComposeMail]["OnClosed"](M.luaComposeMail, wndHandler)
 	
@@ -183,8 +109,6 @@ function MailAutoText:OnClosed(wndHandler)
 end
 
 function MailAutoText:ItemAttachmentAdded(nValue)
-	log:debug("Attachment added: %d", nValue)
-	
 	-- Pass call on to original function so Mail state is fully updated
 	local ret = MailAutoText.hooks[M.luaComposeMail]["AppendAttachment"](M.luaComposeMail, nValue)
 	
@@ -202,8 +126,6 @@ end
 -- Called when an attachment is removed. Triggered by the "Mail" Addons GUI interactions.
 -- Extracted parameter "iAttach" is the index of the attachment being removed.
 function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
-	log:debug("Attachment removed")
-	
 	-- Pass call on to original function so Mail state is fully updated
 	local ret = MailAutoText.hooks[M.luaComposeMail]["OnClickAttachment"](M.luaComposeMail, wndHandler, wndControl)
 		
@@ -216,8 +138,6 @@ function MailAutoText:ItemAttachmentRemoved(wndHandler, wndControl)
 		return
 	end
 	
-	log:debug("Attachment index identified: %d", iAttach)
-		
 	-- Calculate new item-string and trigger body-update
 	MailAutoText.strItemList = MailAutoText:GenerateItemListString()
 	MailAutoText:UpdateMessage()
@@ -302,7 +222,6 @@ function MailAutoText:GenerateSubjectString()
 	else
 		for k,v in pairs(L) do
 			if v == currentSubject then 
-				log:debug("Generated subject identified")
 				bGenerated = true
 				break
 			end
@@ -339,8 +258,6 @@ function MailAutoText:GenerateSubjectString()
 end
 
 function MailAutoText:UpdateMessage()
-	log:debug("Updating message")
-
 	local amtCash = M.luaComposeMail.wndCashWindow:GetAmount()
 	local bCreditsText = (MailAutoText:IsSendingCash() or MailAutoText:IsRequestingCash()) and amtCash ~= nil
 	local bItemListText = MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= ""
@@ -394,251 +311,4 @@ function MailAutoText:UpdateMessage()
 
 	-- Update body
 	M.luaComposeMail.wndMessageEntryText:SetText(newBody)
-end
-
--- Called when the text in the "To" recipient field is altered. Handles name auto-completion.
-function MailAutoText:OnRecipientChanged(wndHandler, wndControl)
-	local strEntered = M.luaComposeMail.wndNameEntry:GetText()
-	local strPreviouslyEntered = MailAutoText.strPreviouslyEntered
-
-	MailAutoText.strTooltip = ""
-	
-	-- Length of current vs previous field used to detect text deletions (which should not trigger auto-completion)
-	local iLenEntered = string.len(strEntered) or 0
-	local iLenPreviouslyEntered = string.len(strPreviouslyEntered) or 0
-	local iSelLength = MailAutoText.iSelLength or 0
-	
-	log:debug("Recipient changed. strEntered='%s', strPreviouslyEntered='%s', iLenEntered=%d, iLenPreviouslyEntered=%d, iSelLength=%d", strEntered, strPreviouslyEntered, iLenEntered, iLenPreviouslyEntered, iSelLength)
-	
-	if strPreviouslyEntered ~= "" -- Must have a previously entered value
-			and (iLenEntered==iLenPreviouslyEntered-1 or iLenEntered==iLenPreviouslyEntered-iSelLength) -- Removed a char, or removed auto-matched selection				
-			and string.find(strPreviouslyEntered, strEntered) == 1 then -- Current text is a starts-with substring of old text
-   
-		-- Text-deletion identified, do not auto-complete. 
-		-- Update previously entered value + selection size, and pass update along to Mail GUI.
-		log:debug("Deleting characters, skipping auto-completion")
-		MailAutoText.strPreviouslyEntered = strEntered
-		MailAutoText.iSelLength = 0		
-		MailAutoText:UpdateTooltip()
-		return MailAutoText.hooks[M.luaComposeMail]["OnInfoChanged"](M.luaComposeMail, wndHandler, wndControl)
-	end
-	
-	-- Check if current value has an addressBook entry in any address book. Priority is Alt > Friend > Guild > Circle.	
-	local strMatched
-	
-	-- Check alt book
-	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.alts, strEntered)
-	if strMatched ~= nil and MailAutoText.strTooltip == "" then MailAutoText.strTooltip = L["MatchedSource_Tooltip_Alt"] end	
-	
-	-- Check friend book
-	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.friends, strEntered)
-	if strMatched ~= nil and MailAutoText.strTooltip == "" then MailAutoText.strTooltip = L["MatchedSource_Tooltip_Friend"] end	
-	
-	-- Check guild book
-	strMatched = strMatched or MailAutoText:GetNameMatch(MailAutoText.addressBook.guild, strEntered)	
-	if strMatched ~= nil and MailAutoText.strTooltip == "" then MailAutoText.strTooltip = L["MatchedSource_Tooltip_Guild"] end	
-	
-	for circleName,circle in pairs(MailAutoText.addressBook.circles) do		
-		strMatched = strMatched or MailAutoText:GetNameMatch(circle, strEntered)
-		if strMatched ~= nil and MailAutoText.strTooltip == "" then MailAutoText.strTooltip = string.format(L["MatchedSource_Tooltip_Circle"], circleName) end
-	end
-		
-	if strMatched ~= nil then
-		-- Match found, set To-field text to the full name, and select the auto-completed part
-		log:debug("Updating entered input '%s' to matched input '%s'", strEntered, strMatched)
-		M.luaComposeMail.wndNameEntry:SetText(strMatched)
-
-		-- Calc selection size and store on MailAutoText object (used to determine text-deletions in future passes)
-		local iSelStart, iSelEnd = string.len(strEntered), string.len(strMatched)
-		MailAutoText.iSelLength = iSelEnd-iSelStart
-		
-		-- Select auto-added name text
-		M.luaComposeMail.wndNameEntry:SetSel(iSelStart, iSelEnd)		
-		
-		-- Consider the fully matched text as "entered" for next pass, for proper deletion-detection.
-		strEntered = strMatched
-	end
-	
-	MailAutoText:UpdateTooltip()
-	
-	-- Update previously entered value and pass update along to Mail GUI
-	MailAutoText.strPreviouslyEntered = strEntered
-	return MailAutoText.hooks[M.luaComposeMail]["OnInfoChanged"](M.luaComposeMail, wndHandler, wndControl)
-end
-
-function MailAutoText:UpdateTooltip()
-	-- Update tooltip regardless of match status
-	M.luaComposeMail.wndNameEntry:SetTooltip(self.strTooltip)
-	M.luaComposeMail.wndNameEntry:SetTooltipType(3) -- Wish I knew the code-enum value for this :-/
-end
-
-
---[[
-	ADDRESS BOOK CODE BELOW
-	-----------------------
-	
-	The address book is series of nested tables resembling a tree. The name "Brofessional"
-	would be added to the address book tree like this (notice all lower case keys):
-	
-		addressBook["b"]["r"]["o"]["f"]["e"]["s"]["s"]["i"]["o"]["n"]["a"]["l"]
-	
-	Each node in this tree also contains a match property. So:
-	
-		addressBook["b"].match = "Brofessional"
-		addressBook["b"]["r"]["o"]["f"].match = "Brofessional"
-
-	The match property always contains the first (alphabetically) complete matched
-	name for this node. F.ex. adding the names "Bro" and "Brock" produce these results:
-
-		addressBook["b"].match = "Bro"
-		addressBook["b"]["r"]["o"].match = "Bro"
-		addressBook["b"]["r"]["o"]["c"].match = "Brock"
-		addressBook["b"]["r"]["o"]["f"].match = "Brofessional"		
-	
-	
-	This structure should provide these desired speed properties. Obviously I have, like, 
-	at least 20 pages of super-math to prove this, I just choose to keep them secret :P
-	
-		* Searching for a match: Very fast
-		* Adding a name: Fast
-		* Removing a name: Slow (total rebuild of the addressBook)
-		
-	The user should only notice the search-time, since adding/removing names is done in
-	the background during addon load and guild/friend list update events.
-]]
-
-function MailAutoText:AddName(book, strName)
-	log:debug(string.format("Adding '%s' to the address book", strName))
-	
-	--- Don't add self to address book
-	if MailAutoText.strPlayerName == nil then
-		MailAutoText.strPlayerName = GameLib.GetPlayerUnit():GetName()
-	end
-	
-	if MailAutoText.strPlayerName == strName then 
-		return
-	end
-	
-	-- First hit, set index to 1 and current node to addressBook tree root
-	MailAutoText:_addName(book, strName, 1, book)	
-end
-
-function MailAutoText:_addName(book, strName, i, node)
-	-- Char at index i in the full name, lowered
-	local char = strName:sub(i, i):lower()
-	
-	-- Check if a child node exist for this char
-	local childNode = node[char]
-	
-	if childNode == nil then
-		-- No child node found, create one and set match for this node to input name
-		childNode = {match = strName}
-		node[char] = childNode		
-	else		
-		-- Node already exist. Update matched name if the current name is alphabetically "lower".
-		if strName < childNode.match then
-			childNode.match = strName
-		end
-	end
-	
-	-- Proceed with next char in the input name
-	if i == strName:len() then 		
-		return -- recursion base
-	end
-	
-	-- Tail-call recursion, avoids stack buildup as addressBook is being constructed.
-	MailAutoText:_addName(book, strName, i+1, childNode)
-end
-
--- Gets the best name match from the address book dictionary
-function MailAutoText:GetNameMatch(book, part)
-	local lower = part:lower()
-	local node = book
-	
-	-- Find the deepest node in the tree, matching the entered text char-by-char
-	for i=1, #lower do
-		local c = lower:sub(i,i)		
-		local childNode = node[c]
-		if childNode == nil then
-			-- Text entered does not match any addressbook name, return nil
-			return nil
-		else
-			-- Char matches a node, go deeper
-			node = childNode
-		end		
-	end
-	
-	local result = node.match or part
-	
-	log:debug("Matched input '%s' to '%s'", part, result)
-	return result
-end
-
-
-function MailAutoText:OnGuildMemberChange(guild)
-	log:debug("Guild or circle changed, requesting roster")
-	guild:RequestMembers()
-end
-
-function MailAutoText:OnGuildRoster(guild, roster)
-	-- Fresh address book, populate with guild/circle data
-	local book = {}
-	for _,member in ipairs(roster) do
-		MailAutoText:AddName(book, member.strName)
-	end
-
-	-- Replace current book
-	if guild:GetType() == GuildLib.GuildType_Guild then
-		log:info("Updating address book for guild '%s'", guild:GetName())
-		self.addressBook.guild = book
-	end
-	if guild:GetType() == GuildLib.GuildType_Circle then
-		log:info("Updating address book for circle '%s'", guild:GetName())
-		self.addressBook.circles[guild:GetName()] = book
-	end
-end
-
-function MailAutoText:AddFriends(book)
-	log:info("Adding friends to address book")	
-	local friends = FriendshipLib:GetList()
-	for _,friend in ipairs(friends) do
-		-- Same-realm friends only... can't send mail to other realms can we?
-		if friend.bFriend == true and friend.strRealmName == GameLib.GetRealmName() then
-			MailAutoText:AddName(book, friend.strCharacterName)
-		end
-	end
-end
-
-
-function MailAutoText:OnSlashCommand(cmd, param)
-	if string.lower(param) == "clear" then
-		local arc = GameLib:GetAccountRealmCharacter()
-		self.addressBook.alts = {}
-		self.tAlts[arc.strRealm] = {}
-		
-		-- Re-add self
-		self.tAlts[arc.strRealm][arc.strCharacter] = true		
-		Print("MailAutoText: Alt-lists cleared.")
-	else
-		Print("Type \"/mailautotext clear\" to clear alt-lists.")		
-	end
-end
-
---[[ Settings save/load --]]
-
-function MailAutoText:OnSave(eType)
-	if eType ~= GameLib.CodeEnumAddonSaveLevel.Realm then 
-		return 
-	end
-
-	return self.tAlts
-end
-
-function MailAutoText:OnRestore(eType, tSavedData)
-	if eType ~= GameLib.CodeEnumAddonSaveLevel.Realm then 
-		return 
-	end
-	
-	-- Restore savedata
-	self.tAlts = tSavedData
 end
