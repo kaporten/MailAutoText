@@ -3,12 +3,16 @@ require "Window"
 require "GameLib"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {3, 0, 0}
+MailAutoText.ADDON_VERSION = {3, 1, 0}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
 -- Reference to Mail addon, initialized during OnEnable
 local M
+
+local tFilter = {
+	{"[Pp]ine", "P!ne"} -- Pine is apparently a nasty word
+}
 
 function MailAutoText:OnEnable()
 	--[[
@@ -309,6 +313,11 @@ function MailAutoText:UpdateMessage()
 		newBody = newBody .. MailAutoText.strItemList
 	end
 
+	-- Run the censorship filter to remove words that prevents mail-sending
+	for _,s in ipairs(tFilter) do
+		newBody = string.gsub(newBody, s[1], s[2])
+	end
+	
 	-- Update body
 	M.luaComposeMail.wndMessageEntryText:SetText(newBody)
 end
