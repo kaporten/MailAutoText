@@ -3,7 +3,7 @@ require "Window"
 require "GameLib"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {3, 1, 0}
+MailAutoText.ADDON_VERSION = {3, 3, 0}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
@@ -26,6 +26,8 @@ function MailAutoText:OnEnable()
 	if M ~= nil then
 		MailAutoText:RawHook(M, "ComposeMail", MailAutoText.HookMailModificationFunctions)
 	end
+	
+	Event_FireGenericEvent("OneVersion_ReportAddonInfo", "MailAutoText", self.ADDON_VERSION[1], self.ADDON_VERSION[2], self.ADDON_VERSION[3])
 end
 
 -- Sets up hooks for client-side mail content modifications
