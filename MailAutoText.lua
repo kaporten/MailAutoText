@@ -3,7 +3,7 @@ require "Window"
 require "GameLib"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {3, 3, 0}
+MailAutoText.ADDON_VERSION = {3, 4, 0}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
