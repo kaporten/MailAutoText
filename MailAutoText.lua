@@ -264,7 +264,7 @@ function MailAutoText:GenerateSubjectString()
 end
 
 function MailAutoText:UpdateMessage()
-	local amtCash = M.luaComposeMail.wndCashWindow:GetAmount():GetAmount(Money.CodeEnumCurrencyType.Credits)
+	local amtCash = M.luaComposeMail.wndCashWindow:GetAmount():GetAmount(Money.CodeEnumCurrencyType.Credits) 
 	local bCreditsText = (MailAutoText:IsSendingCash() or MailAutoText:IsRequestingCash()) and amtCash ~= nil
 	local bItemListText = MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= ""
 
