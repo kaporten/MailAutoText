@@ -3,7 +3,7 @@ require "Window"
 require "GameLib"
 
 local MailAutoText = Apollo.GetPackage("Gemini:Addon-1.1").tPackage:NewAddon("MailAutoText", false, {"Mail"}, "Gemini:Hook-1.0")
-MailAutoText.ADDON_VERSION = {3, 5, 0}
+MailAutoText.ADDON_VERSION = {3, 5, 1}
 
 local L = Apollo.GetPackage("Gemini:Locale-1.0").tPackage:GetLocale("MailAutoText")
 
@@ -158,7 +158,7 @@ end
 
 function MailAutoText:IsSendingCash()
 	if M.luaComposeMail ~= nil then
-		return M.luaComposeMail.wndCashSendBtn:IsChecked() and M.luaComposeMail.wndCashWindow:GetAmount() > 0
+		return M.luaComposeMail.wndCashSendBtn:IsChecked() and M.luaComposeMail.wndCashWindow:GetAmount():GetAmount(Money.CodeEnumCurrencyType.Credits) > 0
 	else
 		return false
 	end	
@@ -166,7 +166,7 @@ end
 
 function MailAutoText:IsRequestingCash()
 	if M.luaComposeMail ~= nil then
-		return M.luaComposeMail.wndCashCODBtn:IsChecked() and MailAutoText:HasAttachments() and M.luaComposeMail.wndCashWindow:GetAmount() > 0
+		return M.luaComposeMail.wndCashCODBtn:IsChecked() and MailAutoText:HasAttachments() and M.luaComposeMail.wndCashWindow:GetAmount():GetAmount(Money.CodeEnumCurrencyType.Credits) > 0
 	else
 		return false
 	end	
@@ -264,7 +264,7 @@ function MailAutoText:GenerateSubjectString()
 end
 
 function MailAutoText:UpdateMessage()
-	local amtCash = M.luaComposeMail.wndCashWindow:GetAmount()
+	local amtCash = M.luaComposeMail.wndCashWindow:GetAmount():GetAmount(Money.CodeEnumCurrencyType.Credits)
 	local bCreditsText = (MailAutoText:IsSendingCash() or MailAutoText:IsRequestingCash()) and amtCash ~= nil
 	local bItemListText = MailAutoText.strItemList ~= nil and MailAutoText.strItemList ~= ""
 
